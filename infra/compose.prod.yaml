@@ -2,6 +2,8 @@
 # Infomaniak Public Cloud (OpenStack): Ubuntu LTS, floating IP, security group
 # for 22/80/443. Postgres stays on the compose network and is not published.
 # AUTH_DEV_MODE stays on until Auth0 replaces the demo login.
+# Caddy keeps certificates in historic_caddy_data. Without that volume every
+# deploy starts from empty storage and requests a new certificate.
 
 services:
   database:
@@ -40,6 +42,9 @@ services:
       CORS_ALLOW_ORIGIN: "^https://app[.]historic-winterthur[.]ch$$"
       DEFAULT_URI: https://app.historic-winterthur.ch
       SERVER_NAME: app.historic-winterthur.ch
+    volumes:
+      - historic_caddy_data:/data
+      - historic_caddy_config:/config
     ports:
       - "80:80"
       - "443:443"
@@ -47,3 +52,9 @@ services:
 
 volumes:
   historic_pg_prod:
+  historic_caddy_data:
+    name: historic_caddy_data
+    external: true
+  historic_caddy_config:
+    name: historic_caddy_config
+    external: true

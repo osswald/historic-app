@@ -5,8 +5,12 @@
 
 # Hostname: app.historic-winterthur.ch
 # Infomaniak Public Cloud is OpenStack. Caddy requests a certificate only after
-# the DNS A/AAAA record points at the instance floating IP and ports 80 and 443
+# the DNS A record points at the instance floating IP and ports 80 and 443
 # are open in the security group. This file does not configure DNS or OpenStack.
+# Certificate storage is the historic_caddy_data volume in compose.prod.yaml.
+# Without that volume every image rebuild asks Let's Encrypt for a new
+# certificate. That issuer allows only five certificates for this exact name
+# per week and then refuses, which leaves HTTPS without a certificate.
 {$SERVER_NAME:app.historic-winterthur.ch} {
 	encode zstd gzip
 
