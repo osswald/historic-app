@@ -275,22 +275,4 @@ class Ride
             throw new \InvalidArgumentException('Eine Zeit und ihr Tagversatz gehören zusammen.');
         }
     }
-
-    private function applySchedule(
-        ?\DateTimeImmutable $departureTime,
-        ?DayOffset $departureOffset,
-        ?\DateTimeImmutable $arrivalTime,
-        ?DayOffset $arrivalOffset,
-    ): void {
-        if (($departureTime === null) !== ($departureOffset === null)) {
-            throw new \InvalidArgumentException('Der Tagversatz der Abfahrt gilt nur zusammen mit der Abfahrtszeit.');
-        }
-        if (($arrivalTime === null) !== ($arrivalOffset === null)) {
-            throw new \InvalidArgumentException('Der Tagversatz der Ankunft gilt nur zusammen mit der Ankunftszeit.');
-        }
-        $this->departureTime = $departureTime;
-        $this->departureOffset = $departureOffset;
-        $this->arrivalTime = $arrivalTime;
-        $this->arrivalOffset = $arrivalOffset;
-    }
 }
