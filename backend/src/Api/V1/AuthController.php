@@ -51,7 +51,11 @@ final class AuthController extends AbstractController
         }
 
         $code = (string) $request->query->get('code', '');
-        if ((string) $request->query->get('error', '') !== '' || $code === '' || $expected === null || !hash_equals($expected, $given)) {
+        $error = (string) $request->query->get('error', '');
+        if ($error !== '' || $code === '' || $expected === null || !hash_equals($expected, $given)) {
+            $reason = $error !== '' ? $this->auth0Error($error) : ($expected === null ? 'state-missing' : ($code === '' ? 'code-missing' : 'state-mismatch'));
+            $this->logger->warning('Auth0-Rückleitung abgelehnt.', ['reason' => $reason]);
+
             return $this->home($request, 'fehlgeschlagen');
         }
 
@@ -77,6 +81,11 @@ final class AuthController extends AbstractController
         $this->tokens->setToken(null);
 
         return $this->away($target, Response::HTTP_SEE_OTHER);
+    }
+
+    private function auth0Error(string $error): string
+    {
+        return preg_match('/^[a-z0-9_]{1,40}$/', $error) === 1 ? $error : 'error';
     }
 
     private function origin(Request $request): string

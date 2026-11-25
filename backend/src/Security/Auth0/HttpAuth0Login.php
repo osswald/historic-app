@@ -23,12 +23,14 @@ final class HttpAuth0Login implements Auth0Login
 
     public function authorizeUrl(string $redirectUri, string $state): string
     {
+        // Die API-Audience nicht mitschicken. Auth0 kennt die Ressource, hat diese
+        // Anwendung aber nicht dafür freigegeben und schickt sonst sofort mit
+        // invalid_request zurück, noch bevor das Login erscheint.
         $query = http_build_query([
             'response_type' => 'code',
             'client_id' => $this->tenant->clientId(),
             'redirect_uri' => $redirectUri,
             'scope' => 'openid profile email',
-            'audience' => $this->tenant->audience(),
             'state' => $state,
         ], '', '&', PHP_QUERY_RFC3986);
 
@@ -70,15 +72,29 @@ final class HttpAuth0Login implements Auth0Login
 
         $access = $data['access_token'] ?? null;
         if (!is_string($access) || $access === '') {
-            throw new Auth0LoginException('Die Anmeldung hat nicht geklappt.');
+            $access = null;
         }
         $id = $data['id_token'] ?? null;
         if (!is_string($id) || $id === '') {
             $id = null;
         }
+        if ($access === null && $id === null) {
+            throw new Auth0LoginException('Die Anmeldung hat nicht geklappt.');
+        }
 
         try {
-            return $this->tokens->memberFromTokens($access, $id);
+            if ($access !== null) {
+                return $this->tokens->memberFromTokens($access, $id);
+            }
+        } catch (Auth0TokenException) {
+            // Ohne freigegebene API liefert Auth0 ein opakes Access-Token.
+        }
+        if ($id === null) {
+            throw new Auth0LoginException('Die Anmeldung hat nicht geklappt.');
+        }
+
+        try {
+            return $this->tokens->memberFromIdToken($id);
         } catch (Auth0TokenException) {
             throw new Auth0LoginException('Die Anmeldung hat nicht geklappt.');
         }

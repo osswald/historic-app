@@ -26,4 +26,11 @@ final class Auth0TokenReader
 
         return $this->claims->member($access, $id, $this->tenant->groupsClaim());
     }
+
+    public function memberFromIdToken(#[\SensitiveParameter] string $idToken): MemberUser
+    {
+        $id = $this->claims->decode($idToken, $this->keys->keys(), $this->tenant->issuer(), $this->tenant->clientId());
+
+        return $this->claims->member($id, null, $this->tenant->groupsClaim());
+    }
 }

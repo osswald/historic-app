@@ -33,7 +33,7 @@ final class HttpAuth0LoginTest extends TestCase
         self::assertSame('/authorize', $parts['path'] ?? null);
         self::assertSame('code', $query['response_type'] ?? null);
         self::assertSame('openid profile email', $query['scope'] ?? null);
-        self::assertSame('https://app.historic-winterthur.ch/api', $query['audience'] ?? null);
+        self::assertArrayNotHasKey('audience', $query);
         self::assertSame('http://127.0.0.1:5173/api/v1/auth/callback', $query['redirect_uri'] ?? null);
         self::assertSame('abc', $query['state'] ?? null);
         self::assertSame('test-client', $query['client_id'] ?? null);
@@ -90,6 +90,27 @@ final class HttpAuth0LoginTest extends TestCase
         self::assertSame('Technik Team', $member->displayName());
         self::assertSame(['Technische Kommission', 'Mitglieder'], $member->groups());
         self::assertTrue($member->isFleet());
+        self::assertFalse($member->isOrganizer());
+    }
+
+    public function testOpaqueAccessTokenFallsBackToTheIdToken(): void
+    {
+        $id = $this->token([
+            'aud' => 'test-client',
+            'sub' => 'auth0|42',
+            'name' => 'Id Token',
+            self::GROUPS => ['Mitglieder'],
+        ]);
+        $http = new MockHttpClient(new MockResponse(json_encode([
+            'access_token' => 'opaque-userinfo-token',
+            'id_token' => $id,
+            'token_type' => 'Bearer',
+        ], JSON_THROW_ON_ERROR), ['http_code' => 200]));
+
+        $member = $this->login($http)->authenticate('the-code', 'http://127.0.0.1:5173/api/v1/auth/callback');
+
+        self::assertSame('Id Token', $member->displayName());
+        self::assertSame(['Mitglieder'], $member->groups());
         self::assertFalse($member->isOrganizer());
     }
 

@@ -45,7 +45,7 @@ final class Auth0LoginTest extends ApiTestCase
         self::assertSame('/authorize', $parts['path'] ?? null);
         self::assertSame('code', $query['response_type'] ?? null);
         self::assertSame('openid profile email', $query['scope'] ?? null);
-        self::assertSame('https://app.historic-winterthur.ch/api', $query['audience'] ?? null);
+        self::assertArrayNotHasKey('audience', $query);
         self::assertSame('http://127.0.0.1:5173/api/v1/auth/callback', $query['redirect_uri'] ?? null);
         self::assertSame('test-client', $query['client_id'] ?? null);
         self::assertArrayNotHasKey('client_secret', $query);
@@ -202,7 +202,6 @@ final class FixedAuth0Login implements Auth0Login
             'client_id' => 'test-client',
             'redirect_uri' => $redirectUri,
             'scope' => 'openid profile email',
-            'audience' => 'https://app.historic-winterthur.ch/api',
             'state' => $state,
         ], '', '&', PHP_QUERY_RFC3986);
     }

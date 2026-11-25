@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { startDevSession } from '../auth/session'
 
 const NOTICES: Record<string, string> = {
@@ -7,7 +7,7 @@ const NOTICES: Record<string, string> = {
 }
 
 export function LoginPage({ checking = false, onLogin }: { checking?: boolean; onLogin: () => void }) {
-  const notice = NOTICES[new URLSearchParams(window.location.search).get('anmeldung') ?? ''] ?? null
+  const [notice] = useState(() => NOTICES[new URLSearchParams(window.location.search).get('anmeldung') ?? ''] ?? null)
 
   useEffect(() => {
     if (!notice) return
