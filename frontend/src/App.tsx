@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
+import { NavigationGuard } from './forms/unsaved'
 import { api } from './api/client'
 import type { Member } from './api/types'
 import { sessionToken } from './auth/session'
@@ -16,6 +17,35 @@ import { PollEditorPage } from './pages/PollEditorPage'
 import { PollsPage } from './pages/PollsPage'
 import { Shell } from './shell/Shell'
 import { MemberContext, ToastContext } from './shell/context'
+
+const router = createBrowserRouter([
+  {
+    element: <ShellLayout />,
+    children: [
+      { path: '/', element: <DashboardPage /> },
+      { path: '/kalender', element: <CalendarPage /> },
+      { path: '/veranstaltungen', element: <EventsPage /> },
+      { path: '/veranstaltungen/neu', element: <EventEditorPage /> },
+      { path: '/veranstaltungen/:id', element: <EventDetailPage /> },
+      { path: '/veranstaltungen/:id/bearbeiten', element: <EventEditorPage /> },
+      { path: '/umfragen', element: <PollsPage /> },
+      { path: '/umfragen/neu', element: <PollEditorPage /> },
+      { path: '/umfragen/:id', element: <PollDetailPage /> },
+      { path: '/umfragen/:id/bearbeiten', element: <PollEditorPage /> },
+      { path: '/fahrzeuge', element: <VehiclesPage /> },
+      { path: '/gastronomie', element: <GastroPage /> },
+    ],
+  },
+])
+
+function ShellLayout() {
+  return (
+    <Shell>
+      <NavigationGuard />
+      <Outlet />
+    </Shell>
+  )
+}
 
 export default function App() {
   const [authed, setAuthed] = useState(() => sessionToken() !== null)
@@ -47,28 +77,11 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <MemberContext value={member}>
-        <ToastContext value={setToast}>
-          <Shell>
-            <Routes>
-              <Route element={<DashboardPage />} path="/" />
-              <Route element={<CalendarPage />} path="/kalender" />
-              <Route element={<EventsPage />} path="/veranstaltungen" />
-              <Route element={<EventEditorPage />} path="/veranstaltungen/neu" />
-              <Route element={<EventDetailPage />} path="/veranstaltungen/:id" />
-              <Route element={<EventEditorPage />} path="/veranstaltungen/:id/bearbeiten" />
-              <Route element={<PollsPage />} path="/umfragen" />
-              <Route element={<PollEditorPage />} path="/umfragen/neu" />
-              <Route element={<PollDetailPage />} path="/umfragen/:id" />
-              <Route element={<PollEditorPage />} path="/umfragen/:id/bearbeiten" />
-              <Route element={<VehiclesPage />} path="/fahrzeuge" />
-              <Route element={<GastroPage />} path="/gastronomie" />
-            </Routes>
-          </Shell>
-          <div aria-live="polite" className={toast ? 'toast show' : 'toast'} role="status">{toast}</div>
-        </ToastContext>
-      </MemberContext>
-    </BrowserRouter>
+    <MemberContext value={member}>
+      <ToastContext value={setToast}>
+        <RouterProvider router={router} />
+        <div aria-live="polite" className={toast ? 'toast show' : 'toast'} role="status">{toast}</div>
+      </ToastContext>
+    </MemberContext>
   )
 }

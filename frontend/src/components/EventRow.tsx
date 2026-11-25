@@ -40,7 +40,7 @@ export function EventRow({
           {card.line2 ? <><br />{card.line2}</> : null}
         </div>
         {onAnswer && card.status === 'published' ? (
-          <div className="actions">
+          <div className="actions choice-pair">
             <button className={card.response === 'yes' ? 'btn small choice active-yes' : 'btn small choice'} disabled={busy} type="button" onClick={() => onAnswer(card.dayId, 'yes')}>✓ Ja</button>
             <button className={card.response === 'no' ? 'btn small choice active-no' : 'btn small choice'} disabled={busy} type="button" onClick={() => onAnswer(card.dayId, 'no')}>✕ Nein</button>
           </div>

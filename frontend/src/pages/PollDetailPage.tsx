@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { Answer, Daypart, PollDetail, PollOption } from '../api/types'
 import { AuditHistory } from '../components/AuditHistory'
+import { useNarrow } from '../forms/narrow'
 import { useMember, useToast } from '../shell/context'
 
 const DAYPARTS: Daypart[] = ['morning', 'afternoon', 'evening']
@@ -18,6 +19,9 @@ export function PollDetailPage() {
   const [statuses, setStatuses] = useState<Record<string, 'draft' | 'published'>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [onlyOpen, setOnlyOpen] = useState(false)
+  const [openDays, setOpenDays] = useState<Record<string, boolean>>({})
+  const narrow = useNarrow()
 
   function apply(next: PollDetail) {
     setPoll(next)
@@ -127,18 +131,42 @@ export function PollDetailPage() {
             Speichern setzt nicht markierte aktuelle Optionen auf Nein. Eine später ergänzte oder geänderte Option bleibt offen und verlangt eine Ergänzung.
             {poll.deadlinePassed && poll.status !== 'closed' ? ' Die Antwortfrist ist abgelaufen und dient später nur der Erinnerung.' : ''}
           </p>
-          {poll.kind === 'depot' ? poll.days.map((day) => (
-            <div className={day.options.some((option) => option.needsSupplement) ? 'surveyrow needs' : 'surveyrow'} key={day.date}>
-              <div>
-                <b>{day.label}</b>
-                <small>Depottag Winterthur</small>
+          {poll.kind === 'depot' && narrow ? (
+            <label className="toggle">
+              <input checked={onlyOpen} type="checkbox" onChange={(event) => setOnlyOpen(event.target.checked)} />
+              Nur offene Tage
+            </label>
+          ) : null}
+          {poll.kind === 'depot' ? poll.days.map((day) => {
+            const open = day.options.some((option) => option.needsSupplement || (choices[option.id] ?? '') === '')
+            if (narrow && onlyOpen && !open) return null
+            const slots = DAYPARTS.map((daypart) => {
+              const option = day.options.find((item) => item.daypart === daypart)
+              return option ? <Slot busy={busy} choice={choices[option.id] ?? ''} key={option.id} locked={locked} option={option} onChoose={choose} /> : <div key={daypart} />
+            })
+            if (!narrow) {
+              return (
+                <div className={day.options.some((option) => option.needsSupplement) ? 'surveyrow needs' : 'surveyrow'} key={day.date}>
+                  <div>
+                    <b>{day.label}</b>
+                    <small>Depottag Winterthur</small>
+                  </div>
+                  {slots}
+                </div>
+              )
+            }
+            const expanded = openDays[day.date] === true
+            return (
+              <div className="day-fold" key={day.date}>
+                <button aria-expanded={expanded} className="day-fold-head" type="button" onClick={() => setOpenDays((current) => ({ ...current, [day.date]: !expanded }))}>
+                  <span>{day.label}</span>
+                  <small>{open ? 'Offen' : 'Beantwortet'}</small>
+                  <span>{expanded ? '▾' : '▸'}</span>
+                </button>
+                {expanded ? <div className="day-fold-body">{slots}</div> : null}
               </div>
-              {DAYPARTS.map((daypart) => {
-                const option = day.options.find((item) => item.daypart === daypart)
-                return option ? <Slot busy={busy} choice={choices[option.id] ?? ''} key={option.id} locked={locked} option={option} onChoose={choose} /> : <div key={daypart} />
-              })}
-            </div>
-          )) : poll.options.map((option) => (
+            )
+          }) : poll.options.map((option) => (
             <div className={option.needsSupplement ? 'surveyrow needs normal' : 'surveyrow normal'} key={option.id}>
               <div>
                 <b>{option.dateLabel}</b>
@@ -196,7 +224,7 @@ function Slot({ option, choice, locked, busy, onChoose }: { option: PollOption; 
     <div className="slot">
       <div>
         {option.daypartLabel ? <div className="slot-label">{option.daypartLabel}</div> : null}
-        <div className="toolbar">
+        <div className="choice-pair">
           <button className={choice === 'yes' ? 'btn small choice active-yes' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'yes')}>✓ Ja</button>
           <button className={choice === 'no' ? 'btn small choice active-no' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'no')}>✕ Nein</button>
         </div>

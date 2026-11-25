@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, DayOffset, EventVehicle, FleetOption, Ride, RidePlan, StationChoice, StationHit } from '../api/types'
+import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
+import { MobileSaveBar } from '../forms/MobileSaveBar'
+import { VehiclePick } from '../forms/VehiclePick'
+import { confirmLeave, useRegisterUnsaved } from '../forms/unsaved'
 import { useToast } from '../shell/context'
 import { clockLabel, dayLabel, offsetLabel } from './rideTime'
 
@@ -32,7 +36,7 @@ type RideDraft = {
 
 const OFFSETS: DayOffset[] = [-1, 0, 1]
 
-export function RidePlanPanel({ event }: { event: ClubEvent }) {
+export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?: () => void }) {
   const toast = useToast()
   const [plan, setPlan] = useState<RidePlan | null>(null)
   const [drafts, setDrafts] = useState<RideDraft[]>([])
@@ -40,7 +44,10 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [incomplete, setIncomplete] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [baseline, setBaseline] = useState<string | null>(null)
 
   useEffect(() => {
     api<RidePlan>(`/api/v1/events/${event.id}/rides`)
@@ -49,9 +56,18 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
         setDrafts(body.rides.map(toDraft))
         setListed(body.eventVehicles.map(toListed))
         setWarnings(body.warnings)
+        setReady(true)
       })
       .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Fahrten konnten nicht geladen werden.'))
   }, [event.id])
+
+  const snapshot = JSON.stringify({ drafts, listed })
+  useEffect(() => {
+    if (!ready) return
+    setBaseline((current) => current ?? snapshot)
+  }, [ready, snapshot])
+  const dirty = baseline !== null && snapshot !== baseline
+  useRegisterUnsaved(`rides-${event.id}`, dirty)
 
   function updateDraft(key: string, patch: Partial<RideDraft>) {
     setDrafts((current) => current.map((ride) => ride.key === key ? { ...ride, ...patch } : ride))
@@ -64,10 +80,23 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
     } : ride))
   }
 
+  function cancel() {
+    if (!confirmLeave()) return
+    onCancel?.()
+  }
+
   async function save(submit: FormEvent) {
     submit.preventDefault()
+    const missing = missingRideFields(drafts)
+    if (missing.length > 0) {
+      setIncomplete(incompleteMessage(missing))
+      setFieldErrors(rideFieldErrors(drafts))
+      setError(null)
+      return
+    }
     setBusy(true)
     setError(null)
+    setIncomplete(null)
     setFieldErrors({})
     try {
       const saved = await api<RidePlan>(`/api/v1/events/${event.id}/rides`, {
@@ -93,13 +122,19 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
           })),
         }),
       })
+      const nextDrafts = saved.rides.map(toDraft)
+      const nextListed = saved.eventVehicles.map(toListed)
       setPlan(saved)
-      setDrafts(saved.rides.map(toDraft))
-      setListed(saved.eventVehicles.map(toListed))
+      setDrafts(nextDrafts)
+      setListed(nextListed)
+      setBaseline(JSON.stringify({ drafts: nextDrafts, listed: nextListed }))
       setWarnings(saved.warnings)
       toast(saved.warnings.length > 0 ? 'Gespeichert. Bitte die Hinweise zur Doppelbelegung prüfen.' : 'Fahrt gespeichert.')
     } catch (reason) {
-      if (reason instanceof ApiError) {
+      if (reason instanceof ApiError && reason.message === 'Die Eingaben sind unvollständig.') {
+        setIncomplete(incompleteMessage(labelsForRideErrors(reason.fields)))
+        setFieldErrors(reason.fields ?? {})
+      } else if (reason instanceof ApiError) {
         setError(reason.message)
         setFieldErrors(reason.fields ?? {})
       } else {
@@ -141,18 +176,18 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
               const day = event.days.find((item) => item.id === ride.eventDayId)
               return (
                 <div className="route-row route-ride" key={ride.id}>
-                  <span>{day ? dayLabel(day.date) : 'Tag'}</span>
-                  <span><strong>{ride.trainNumber}</strong></span>
-                  <span>
+                  <span data-label="Tag">{day ? dayLabel(day.date) : 'Tag'}</span>
+                  <span data-label="Zug"><strong>{ride.trainNumber}</strong></span>
+                  <span data-label="Strecke">
                     <strong title={`${ride.origin.name} → ${ride.destination.name}`}>{stationLabel(ride.origin)} → {stationLabel(ride.destination)}</strong>
                   </span>
-                  <span>
+                  <span data-label="Fahrzeuge">
                     {ride.vehicles.map((vehicle) => (
                       <span key={vehicle.id}>{vehicle.label}{vehicle.external ? <small>Extern</small> : <small>Vereinsfahrzeug</small>}</span>
                     ))}
                   </span>
-                  <span>{clockLabel(ride.departureTime, ride.departureOffset)}</span>
-                  <span>{clockLabel(ride.arrivalTime, ride.arrivalOffset)}</span>
+                  <span data-label="Abfahrt">{clockLabel(ride.departureTime, ride.departureOffset)}</span>
+                  <span data-label="Ankunft">{clockLabel(ride.arrivalTime, ride.arrivalOffset)}</span>
                 </div>
               )
             })}
@@ -163,11 +198,11 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
         )) : null}
       </div>
       {canEdit ? (
-        <form onSubmit={(submit) => { void save(submit) }}>
+        <form className="editor-form" onSubmit={(submit) => { void save(submit) }}>
           <div className="panel">
             <div className="panel-head">
               <h2>Fahrten bearbeiten</h2>
-              <button className="btn primary small" disabled={busy} type="submit">Fahrten speichern</button>
+              <button className="btn primary small desktop-save" disabled={busy} type="submit">Fahrten speichern</button>
             </div>
             <div className="panel-inner" style={{ paddingTop: 0 }}>
               <div className="note">Die Fahrzeugliste des Anlasses kommt aus dem Fahrzeugstamm, inklusive externer Fahrzeuge. Jede Fahrt verwendet eine Teilmenge. Bahnhöfe erscheinen mit Kürzel; der volle Name steht im Tooltip. Eine Doppelbelegung eines Vereinsfahrzeugs gilt für den ganzen Anlasszeitraum, nennt Entwurf oder veröffentlicht und blockiert das Speichern nicht. Abgesagte Anlässe zählen nicht.</div>
@@ -179,10 +214,11 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
                   return (
                     <div key={vehicle.key}>
                       <div className="vehicle-line">
-                        <select className="input" value={vehicle.vehicleId} onChange={(input) => setListed((current) => current.map((item) => item.key === vehicle.key ? { ...item, vehicleId: input.target.value } : item))}>
-                          <option value="">Fahrzeug wählen</option>
-                          {fleet.map((item) => <option key={item.id} value={item.id}>{item.label}{item.external ? ' · Extern' : ''} · {item.statusLabel}</option>)}
-                        </select>
+                        <VehiclePick
+                          options={fleet.map((item) => ({ id: item.id, label: `${item.label}${item.external ? ' · Extern' : ''} · ${item.statusLabel}` }))}
+                          value={vehicle.vehicleId}
+                          onChange={(vehicleId) => setListed((current) => current.map((item) => item.key === vehicle.key ? { ...item, vehicleId } : item))}
+                        />
                         {chosen?.external ? (
                           <input aria-label="Mietstatus" className="input" placeholder="Mietstatus" value={vehicle.rentalStatus} onChange={(input) => setListed((current) => current.map((item) => item.key === vehicle.key ? { ...item, rentalStatus: input.target.value } : item))} />
                         ) : null}
@@ -251,10 +287,11 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
                     {listedOptions.length === 0 ? <p className="muted">Zuerst ein Fahrzeug in die Liste des Anlasses aufnehmen.</p> : null}
                     {ride.vehicles.map((vehicle, vehicleIndex) => (
                       <div className="vehicle-line" key={vehicle.key}>
-                        <select className="input" value={vehicle.vehicleId} onChange={(input) => updateVehicle(ride.key, vehicle.key, { vehicleId: input.target.value })}>
-                          <option value="">Fahrzeug wählen</option>
-                          {listedOptions.map((option) => <option key={option.id} value={option.id}>{option.label}{option.external ? ' · Extern' : ''}</option>)}
-                        </select>
+                        <VehiclePick
+                          options={listedOptions.map((option) => ({ id: option.id, label: `${option.label}${option.external ? ' · Extern' : ''}` }))}
+                          value={vehicle.vehicleId}
+                          onChange={(vehicleId) => updateVehicle(ride.key, vehicle.key, { vehicleId })}
+                        />
                         <button className="btn small light" type="button" onClick={() => updateDraft(ride.key, { vehicles: ride.vehicles.filter((item) => item.key !== vehicle.key) })}>Entfernen</button>
                         {fieldErrors[`rides.${index}.vehicles.${vehicleIndex}.vehicleId`] ? (
                           <div className="field-error vehicle-line-error">{fieldErrors[`rides.${index}.vehicles.${vehicleIndex}.vehicleId`]}</div>
@@ -272,6 +309,7 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
               <button className="btn light" type="button" onClick={() => setDrafts((current) => [...current, blankRide(event, listedOptions)])}>Fahrt hinzufügen</button>
             </div>
           </div>
+          <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />
         </form>
       ) : null}
     </div>
@@ -280,6 +318,7 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
 
 function StationField({ label, value, onChange, error }: { label: string; value: StationChoice | null; onChange: (station: StationChoice) => void; error?: string }) {
   const [query, setQuery] = useState('')
+  const [nameOpen, setNameOpen] = useState(false)
   const [results, setResults] = useState<StationHit[]>([])
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
@@ -324,7 +363,21 @@ function StationField({ label, value, onChange, error }: { label: string; value:
 
   return (
     <Field error={error ?? searchError ?? undefined} label={label}>
-      <p className="station-chosen" title={value?.name}>{value ? stationLabel(value) : 'Noch kein Bahnhof gewählt.'}</p>
+      {value ? (
+        <>
+          <p className="station-chosen">
+            <button
+              className="ghost station-chosen-name"
+              title={value.name}
+              type="button"
+              onClick={() => { if (value.abbreviation?.trim()) setNameOpen((open) => !open) }}
+            >
+              {stationLabel(value)}
+            </button>
+          </p>
+          {nameOpen && value.abbreviation?.trim() ? <p className="station-official">{value.name}</p> : null}
+        </>
+      ) : <p className="station-chosen">Noch kein Bahnhof gewählt.</p>}
       <input aria-label={`${label} suchen`} className="input" placeholder="Name oder Kürzel" value={query} onChange={(input) => setQuery(input.target.value)} />
       {searching ? <p className="muted">Suche …</p> : null}
       {!searching && settled && query.trim().length >= 1 && results.length === 0 && !searchError ? <p className="muted">Keine Zugshaltestelle gefunden.</p> : null}
@@ -416,4 +469,43 @@ function parseOffset(value: string): DayOffset {
   if (value === '-1') return -1
   if (value === '1') return 1
   return 0
+}
+
+function rideTag(label: string, index: number, total: number): string {
+  return total > 1 ? `${label} (Fahrt ${index + 1})` : label
+}
+
+function missingRideFields(drafts: RideDraft[]): string[] {
+  return missingFieldLabels(drafts.flatMap((ride, index) => [
+    { label: rideTag('Zugnummer', index, drafts.length), filled: ride.trainNumber.trim() !== '' },
+    { label: rideTag('Startbahnhof', index, drafts.length), filled: ride.origin !== null },
+    { label: rideTag('Zielbahnhof', index, drafts.length), filled: ride.destination !== null },
+    { label: rideTag('Fahrzeuge', index, drafts.length), filled: ride.vehicles.some((vehicle) => vehicle.vehicleId !== '') },
+  ]))
+}
+
+function rideFieldErrors(drafts: RideDraft[]): Record<string, string> {
+  const next: Record<string, string> = {}
+  drafts.forEach((ride, index) => {
+    if (ride.trainNumber.trim() === '') next[`rides.${index}.trainNumber`] = 'Bitte eine Zugnummer angeben.'
+    if (ride.origin === null) next[`rides.${index}.origin`] = 'Bitte den Startbahnhof aus der Suche wählen.'
+    if (ride.destination === null) next[`rides.${index}.destination`] = 'Bitte den Zielbahnhof aus der Suche wählen.'
+    if (!ride.vehicles.some((vehicle) => vehicle.vehicleId !== '')) next[`rides.${index}.vehicles`] = 'Bitte mindestens ein Fahrzeug angeben.'
+  })
+  return next
+}
+
+function labelsForRideErrors(fields: Record<string, string> | undefined): string[] {
+  if (!fields) return []
+  return Object.keys(fields).map((key) => {
+    if (key.includes('trainNumber')) return 'Zugnummer'
+    if (key.includes('origin')) return 'Startbahnhof'
+    if (key.includes('destination')) return 'Zielbahnhof'
+    if (key.includes('vehicles')) return 'Fahrzeuge'
+    if (key.includes('eventDayId')) return 'Veranstaltungstag'
+    if (key.includes('departureTime')) return 'Abfahrt'
+    if (key.includes('arrivalTime')) return 'Ankunft'
+    if (key.includes('internalNote')) return 'Interne Notiz'
+    return ''
+  })
 }

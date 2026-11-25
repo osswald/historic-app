@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import type { FleetList, FleetVehicle, VehicleStatus } from '../api/types'
 import { AuditHistory } from '../components/AuditHistory'
+import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
+import { MobileSaveBar } from '../forms/MobileSaveBar'
+import { confirmLeave, useRegisterUnsaved } from '../forms/unsaved'
 import { useToast } from '../shell/context'
 
 const STATUSES: Array<{ value: VehicleStatus; label: string }> = [
@@ -130,12 +133,12 @@ function VehicleCard({ vehicle, technical, canEdit, canRecordBattery, onChange }
           {canEdit ? <button className="btn small light" type="button" onClick={() => setOpen((value) => !value)}>{open ? 'Schliessen' : 'Details'}</button> : null}
         </form>
       ) : null}
-      {open && technical ? <VehicleDetails vehicle={vehicle} onChange={onChange} /> : null}
+      {open && technical ? <VehicleDetails vehicle={vehicle} onChange={onChange} onClose={() => setOpen(false)} /> : null}
     </div>
   )
 }
 
-function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange: (vehicle: FleetVehicle) => void }) {
+function VehicleDetails({ vehicle, onChange, onClose }: { vehicle: FleetVehicle; onChange: (vehicle: FleetVehicle) => void; onClose: () => void }) {
   const toast = useToast()
   const [kind, setKind] = useState<'motor_hours' | 'kilometres'>(vehicle.tracksMotorHours === false ? 'kilometres' : 'motor_hours')
   const [value, setValue] = useState('')
@@ -146,6 +149,14 @@ function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange
 
   async function record(submit: FormEvent) {
     submit.preventDefault()
+    const missing = missingFieldLabels([
+      { label: 'Zählerstand', filled: value.trim() !== '' },
+      { label: 'Ablesedatum', filled: readOn !== '' },
+    ])
+    if (missing.length > 0) {
+      setError(incompleteMessage(missing))
+      return
+    }
     setBusy(true)
     setError(null)
     setFieldErrors({})
@@ -175,20 +186,34 @@ function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange
       <form onSubmit={(submit) => { void record(submit) }}>
         <div className="formfield">
           <label>Zählerstand</label>
-          <div className="vehicle-line">
-            <select className="input" value={kind} onChange={(input) => setKind(input.target.value === 'kilometres' ? 'kilometres' : 'motor_hours')}>
-              {vehicle.tracksMotorHours === false ? null : <option value="motor_hours">Motorstunden</option>}
-              <option value="kilometres">Kilometer</option>
-            </select>
-            <input className="input" inputMode="decimal" value={value} onChange={(input) => setValue(input.target.value)} />
-            <input className="input" type="date" value={readOn} onChange={(input) => setReadOn(input.target.value)} />
+          <div className="vehicle-line meter-entry">
+            <div>
+              <span className="mobile-label">Art</span>
+              <select className="input" value={kind} onChange={(input) => setKind(input.target.value === 'kilometres' ? 'kilometres' : 'motor_hours')}>
+                {vehicle.tracksMotorHours === false ? null : <option value="motor_hours">Motorstunden</option>}
+                <option value="kilometres">Kilometer</option>
+              </select>
+            </div>
+            <div>
+              <span className="mobile-label">Stand</span>
+              <input className="input" inputMode="decimal" value={value} onChange={(input) => setValue(input.target.value)} />
+            </div>
+            <div>
+              <span className="mobile-label">Ablesedatum</span>
+              <input className="input" type="date" value={readOn} onChange={(input) => setReadOn(input.target.value)} />
+            </div>
           </div>
           {fieldErrors.kind || fieldErrors.value || fieldErrors.readOn ? <div className="field-error">{fieldErrors.kind ?? fieldErrors.value ?? fieldErrors.readOn}</div> : null}
           {error ? <div className="field-error">{error}</div> : null}
           <button className="btn small light" disabled={busy} type="submit">Zählerstand erfassen</button>
         </div>
       </form>
-      <p className="muted">P1 {formatOptional(vehicle.p1On)} · P5 {formatOptional(vehicle.p5On)} · Öl {formatOptional(vehicle.oilOn)} · Nächste Wartung {formatOptional(vehicle.nextMaintenanceOn)}</p>
+      <p className="muted fact-inline">
+        <span>P1 {formatOptional(vehicle.p1On)}</span>
+        <span>P5 {formatOptional(vehicle.p5On)}</span>
+        <span>Öl {formatOptional(vehicle.oilOn)}</span>
+        <span>Nächste Wartung {formatOptional(vehicle.nextMaintenanceOn)}</span>
+      </p>
       {vehicle.owner ? <p>Eigentümerkontakt: {vehicle.owner}</p> : null}
       {vehicle.nvr ? <p>NVR: {vehicle.nvr}</p> : null}
       {(vehicle.meterReadings ?? []).length > 0 ? (
@@ -202,6 +227,7 @@ function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange
         initial={draftFrom(vehicle)}
         title="Stammdaten"
         vehicleId={vehicle.id}
+        onCancel={onClose}
         onSaved={(saved) => {
           onChange(saved)
           toast('Fahrzeug gespeichert.')
@@ -213,14 +239,39 @@ function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange
 
 function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: string; initial: Draft; vehicleId?: string; onSaved: (vehicle: FleetVehicle) => void; onCancel?: () => void }) {
   const [draft, setDraft] = useState(initial)
+  const [baseline, setBaseline] = useState(initial)
   const [error, setError] = useState<string | null>(null)
+  const [incomplete, setIncomplete] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(baseline)
+  useRegisterUnsaved(vehicleId ? `vehicle-${vehicleId}` : 'vehicle-new', dirty)
+
+  function cancel() {
+    if (!confirmLeave()) return
+    setDraft(baseline)
+    setIncomplete(null)
+    onCancel?.()
+  }
 
   async function save(submit: FormEvent) {
     submit.preventDefault()
+    const missing = missingFieldLabels([
+      { label: 'Name', filled: draft.name.trim() !== '' },
+      { label: 'Technische Notiz', filled: draft.status === 'ready' || draft.technicalNote.trim() !== '' },
+    ])
+    if (missing.length > 0) {
+      setIncomplete(incompleteMessage(missing))
+      setFieldErrors({
+        ...(draft.name.trim() === '' ? { name: 'Bitte einen Namen mit höchstens 120 Zeichen angeben.' } : {}),
+        ...(draft.status !== 'ready' && draft.technicalNote.trim() === '' ? { technicalNote: 'Bitte bei Eingeschränkt und Gesperrt einen Grund angeben.' } : {}),
+      })
+      setError(null)
+      return
+    }
     setBusy(true)
     setError(null)
+    setIncomplete(null)
     setFieldErrors({})
     try {
       const saved = await api<FleetVehicle>(vehicleId ? `/api/v1/vehicles/${vehicleId}` : '/api/v1/vehicles', {
@@ -240,9 +291,15 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
           nextMaintenanceOn: draft.nextMaintenanceOn === '' ? null : draft.nextMaintenanceOn,
         }),
       })
+      const savedDraft = draftFrom(saved)
+      setDraft(savedDraft)
+      setBaseline(savedDraft)
       onSaved(saved)
     } catch (reason) {
-      if (reason instanceof ApiError) {
+      if (reason instanceof ApiError && reason.message === 'Die Eingaben sind unvollständig.') {
+        setIncomplete(incompleteMessage(labelsForVehicleErrors(reason.fields)))
+        setFieldErrors(reason.fields ?? {})
+      } else if (reason instanceof ApiError) {
         setError(reason.message)
         setFieldErrors(reason.fields ?? {})
       } else {
@@ -254,9 +311,9 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
   }
 
   return (
-    <form className="vehicle-form" onSubmit={(submit) => { void save(submit) }}>
+    <form className="vehicle-form editor-form" onSubmit={(submit) => { void save(submit) }}>
       <h3>{title}</h3>
-      {error ? <div className="field-error">{error}</div> : null}
+      {error ? <div className="banner-error">{error}</div> : null}
       <div className="formfield">
         <label>Name</label>
         <input className="input" value={draft.name} onChange={(input) => setDraft({ ...draft, name: input.target.value })} />
@@ -319,12 +376,30 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
         {fieldErrors.technicalNote ? <div className="field-error">{fieldErrors.technicalNote}</div> : null}
       </div>
       {vehicleId ? <AuditHistory entityId={vehicleId} entityType="vehicle" /> : null}
-      <div className="vehicle-actions">
+      <div className="vehicle-actions desktop-save">
         <button className="btn primary small" disabled={busy} type="submit">Speichern</button>
-        {onCancel ? <button className="btn small light" type="button" onClick={onCancel}>Abbrechen</button> : null}
+        {onCancel ? <button className="btn small light" type="button" onClick={cancel}>Abbrechen</button> : null}
       </div>
+      <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />
     </form>
   )
+}
+
+function labelsForVehicleErrors(fields: Record<string, string> | undefined): string[] {
+  if (!fields) return []
+  const names: Record<string, string> = {
+    name: 'Name',
+    number: 'Nummer',
+    status: 'Status',
+    technicalNote: 'Technische Notiz',
+    owner: 'Eigentümerkontakt',
+    nvr: 'NVR',
+    p1On: 'P1',
+    p5On: 'P5',
+    oilOn: 'Öl',
+    nextMaintenanceOn: 'Nächste Wartung',
+  }
+  return Object.keys(fields).map((key) => names[key] ?? '')
 }
 
 function emptyDraft(): Draft {

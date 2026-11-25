@@ -4,6 +4,7 @@ import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
 import { AuditHistory } from '../components/AuditHistory'
 import { useMember, useToast } from '../shell/context'
+import { confirmLeave } from '../forms/unsaved'
 import { GastroPlanPanel } from './GastroPlanPanel'
 import { RidePlanPanel } from './RidePlanPanel'
 
@@ -82,7 +83,7 @@ export function EventDetailPage() {
         <Link className="btn small light" to="/veranstaltungen">‹ Veranstaltungen</Link>
         <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
           <span className={event.status === 'published' ? 'pill green' : event.status === 'cancelled' ? 'pill red' : 'pill gray'}>{event.statusLabel}</span>
-          {member?.canOrganize ? <button className="btn small light" disabled={copying} type="button" onClick={() => { void copyEvent() }}>Kopieren</button> : null}
+          {member?.canOrganize ? <button className="btn small light secondary-action" disabled={copying} type="button" onClick={() => { void copyEvent() }}>Kopieren</button> : null}
           {member?.canOrganize ? <Link className="btn small" to={`/veranstaltungen/${event.id}/bearbeiten`}>✎ Bearbeiten</Link> : null}
         </div>
       </div>
@@ -98,7 +99,7 @@ export function EventDetailPage() {
       </div>
       <div className="subnav" role="tablist">
         {TABS.map((item) => (
-          <button className={tab === item.id ? 'active' : ''} key={item.id} type="button" onClick={() => setTab(item.id)}>{item.label}</button>
+          <button className={tab === item.id ? 'active' : ''} key={item.id} type="button" onClick={() => { if (item.id !== tab && !confirmLeave()) return; setTab(item.id) }}>{item.label}</button>
         ))}
       </div>
       {tab === 'overview' ? (
@@ -153,8 +154,8 @@ export function EventDetailPage() {
           </div>
         </div>
       ) : null}
-      {tab === 'rides' ? <RidePlanPanel event={event} /> : null}
-      {tab === 'gastro' ? <GastroPlanPanel event={event} /> : null}
+      {tab === 'rides' ? <RidePlanPanel event={event} onCancel={() => setTab('overview')} /> : null}
+      {tab === 'gastro' ? <GastroPlanPanel event={event} onCancel={() => setTab('overview')} /> : null}
       {tab === 'tasks' ? <LaterNote text="Aufgabenlisten bleiben in der bestehenden Aufgaben-App. Hier erscheinen sie, sobald die Verknüpfung steht." /> : null}
     </section>
   )
@@ -177,7 +178,7 @@ function DayAnswer({
       <div className="panel-head"><h2>Meine Teilnahme</h2><span className="muted">{day.line1}</span></div>
       <div className="panel-inner" style={{ paddingTop: 0 }}>
         <p className="muted">Kannst du an diesem Tag teilnehmen?</p>
-        <div className="toolbar" style={{ justifyContent: 'flex-start' }}>
+        <div className="choice-pair">
           <button className={day.myResponse === 'yes' ? 'btn choice active-yes' : 'btn choice'} disabled={busy} type="button" onClick={() => { void onAnswer(day.id, 'yes', comment) }}>✓ Ja</button>
           <button className={day.myResponse === 'no' ? 'btn choice active-no' : 'btn choice'} disabled={busy} type="button" onClick={() => { void onAnswer(day.id, 'no', comment) }}>✕ Nein</button>
         </div>

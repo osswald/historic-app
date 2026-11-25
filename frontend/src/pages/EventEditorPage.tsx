@@ -2,6 +2,10 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, FleetList } from '../api/types'
+import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
+import { MobileSaveBar } from '../forms/MobileSaveBar'
+import { useRegisterUnsaved } from '../forms/unsaved'
+import { VehiclePick } from '../forms/VehiclePick'
 
 type MeetingDraft = {
   key: string
@@ -34,6 +38,14 @@ function blankDay(): DayDraft {
   return { key: crypto.randomUUID(), date: '', startsAt: '', endsAt: '', location: '', meetingPoints: [] }
 }
 
+function pointIsBlank(point: MeetingDraft): boolean {
+  return point.placeName.trim() === '' && point.meetsAt === '' && point.description.trim() === ''
+}
+
+function dayIsBlank(day: DayDraft): boolean {
+  return day.date === '' && day.startsAt === '' && day.endsAt === '' && day.location.trim() === '' && day.meetingPoints.every(pointIsBlank)
+}
+
 export function EventEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -52,7 +64,10 @@ export function EventEditorPage() {
   const [vehicles, setVehicles] = useState<VehicleDraft[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  const [incomplete, setIncomplete] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(!editing)
+  const [baseline, setBaseline] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -83,8 +98,19 @@ export function EventEditorPage() {
         vehicleId: vehicle.vehicleId,
         rentalStatus: vehicle.rentalStatus ?? '',
       })))
+      setLoaded(true)
     }).catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Veranstaltung konnte nicht geladen werden.'))
   }, [id])
+
+  const snapshot = JSON.stringify({
+    title, clubs, categories, status, internalDescription, publicDescription, publishToWebsite, days, vehicles,
+  })
+  useEffect(() => {
+    if (!loaded) return
+    setBaseline((current) => current ?? snapshot)
+  }, [loaded, snapshot])
+  const dirty = baseline !== null && snapshot !== baseline
+  useRegisterUnsaved(editing ? `event-${id}` : 'event-new', dirty)
 
   useEffect(() => {
     api<{ places: Array<{ name: string }> }>('/api/v1/places')
@@ -113,10 +139,23 @@ export function EventEditorPage() {
     } : day))
   }
 
+  function cancel() {
+    void navigate(editing ? `/veranstaltungen/${id}` : '/veranstaltungen')
+  }
+
   async function save(event: FormEvent) {
     event.preventDefault()
+    const missing = missingEventFields(title, clubs, days)
+    const localErrors = eventFieldErrors(title, clubs, days)
+    if (missing.length > 0) {
+      setIncomplete(incompleteMessage(missing))
+      setErrors(localErrors)
+      setError(null)
+      return
+    }
     setBusy(true)
     setError(null)
+    setIncomplete(null)
     setErrors({})
     const payload = {
       title,
@@ -156,7 +195,10 @@ export function EventEditorPage() {
       })
       void navigate(`/veranstaltungen/${saved.id}`)
     } catch (reason) {
-      if (reason instanceof ApiError) {
+      if (reason instanceof ApiError && reason.message === 'Die Eingaben sind unvollständig.') {
+        setIncomplete(incompleteMessage(labelsForEventErrors(reason.fields)))
+        setErrors(reason.fields ?? {})
+      } else if (reason instanceof ApiError) {
         setError(reason.message)
         setErrors(reason.fields ?? {})
       } else {
@@ -173,14 +215,14 @@ export function EventEditorPage() {
         <Link className="btn small light" to={editing ? `/veranstaltungen/${id}` : '/veranstaltungen'}>‹ Zurück</Link>
         <span className="pill orange">{editing ? 'Bearbeitung' : 'Neue Veranstaltung'}</span>
       </div>
-      <form onSubmit={(event) => { void save(event) }}>
+      <form className="editor-form" onSubmit={(event) => { void save(event) }}>
         <div className="heading">
           <div>
             <div className="eyebrow">Organisation</div>
             <h1>{editing ? 'Veranstaltung bearbeiten' : 'Veranstaltung anlegen'}</h1>
             <div className="hello">Für Organisatoren und Administratoren.</div>
           </div>
-          <button className="btn primary" disabled={busy} type="submit">Änderungen speichern</button>
+          <button className="btn primary heading-save" disabled={busy} type="submit">Änderungen speichern</button>
         </div>
         {error ? <div className="banner-error">{error}</div> : null}
         <div className="detailgrid">
@@ -257,12 +299,12 @@ export function EventEditorPage() {
                           ) : null}
                         </div>
                       ))}
-                      <button className="btn small light" type="button" onClick={() => updateDay(day.key, { meetingPoints: [...day.meetingPoints, blankMeeting()] })}>Treffpunkt hinzufügen</button>
+                      <button className="btn small light secondary-action" type="button" onClick={() => updateDay(day.key, { meetingPoints: [...day.meetingPoints, blankMeeting()] })}>Treffpunkt hinzufügen</button>
                     </div>
                     {days.length > 1 ? <button className="btn small light" type="button" onClick={() => setDays((current) => current.filter((item) => item.key !== day.key))}>Tag entfernen</button> : null}
                   </div>
                 ))}
-                <button className="btn light" type="button" onClick={() => setDays((current) => [...current, blankDay()])}>Weiteren Tag hinzufügen</button>
+                <button className="btn light secondary-action" type="button" onClick={() => setDays((current) => [...current, blankDay()])}>Weiteren Tag hinzufügen</button>
                 <datalist id="place-directory">
                   {places.map((place) => <option key={place} value={place} />)}
                 </datalist>
@@ -278,10 +320,11 @@ export function EventEditorPage() {
                   return (
                     <div key={vehicle.key}>
                       <div className="vehicle-line">
-                        <select className="input" value={vehicle.vehicleId} onChange={(event) => setVehicles((current) => current.map((item) => item.key === vehicle.key ? { ...item, vehicleId: event.target.value } : item))}>
-                          <option value="">Fahrzeug wählen</option>
-                          {fleet.map((item) => <option key={item.id} value={item.id}>{item.label}{item.external ? ' · Extern' : ''}</option>)}
-                        </select>
+                        <VehiclePick
+                          options={fleet.map((item) => ({ id: item.id, label: `${item.label}${item.external ? ' · Extern' : ''}` }))}
+                          value={vehicle.vehicleId}
+                          onChange={(vehicleId) => setVehicles((current) => current.map((item) => item.key === vehicle.key ? { ...item, vehicleId } : item))}
+                        />
                         {chosen?.external ? (
                           <input aria-label="Mietstatus" className="input" placeholder="Mietstatus" value={vehicle.rentalStatus} onChange={(event) => setVehicles((current) => current.map((item) => item.key === vehicle.key ? { ...item, rentalStatus: event.target.value } : item))} />
                         ) : null}
@@ -304,9 +347,60 @@ export function EventEditorPage() {
             </div>
           </div>
         </div>
+        <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />
       </form>
     </section>
   )
+}
+
+function missingEventFields(title: string, clubs: string[], days: DayDraft[]): string[] {
+  const fields: Array<{ label: string; filled: boolean }> = [
+    { label: 'Titel der Veranstaltung', filled: title.trim() !== '' },
+    { label: 'Verein', filled: clubs.length > 0 },
+  ]
+  const meaningful = days.map((day, index) => ({ day, index })).filter(({ day }) => !dayIsBlank(day))
+  if (meaningful.length === 0) fields.push({ label: 'Datum', filled: false })
+  for (const { day, index } of meaningful) {
+    fields.push({ label: days.length > 1 ? `Datum (Tag ${index + 1})` : 'Datum', filled: day.date !== '' })
+    const points = day.meetingPoints.map((point, pointIndex) => ({ point, pointIndex })).filter(({ point }) => !pointIsBlank(point))
+    for (const { point, pointIndex } of points) {
+      const suffix = points.length > 1 || days.length > 1 ? ` (Treffpunkt ${pointIndex + 1})` : ''
+      fields.push({ label: `Ort${suffix}`, filled: point.placeName.trim() !== '' })
+      fields.push({ label: `Uhrzeit${suffix}`, filled: point.meetsAt !== '' })
+    }
+  }
+  return missingFieldLabels(fields)
+}
+
+function eventFieldErrors(title: string, clubs: string[], days: DayDraft[]): Record<string, string> {
+  const next: Record<string, string> = {}
+  if (title.trim() === '') next.title = 'Bitte einen Titel mit höchstens 200 Zeichen angeben.'
+  if (clubs.length === 0) next.clubs = 'Bitte mindestens einen Verein auswählen.'
+  const meaningful = days.map((day, index) => ({ day, index })).filter(({ day }) => !dayIsBlank(day))
+  if (meaningful.length === 0) next.days = 'Bitte mindestens einen Veranstaltungstag angeben.'
+  for (const { day, index } of meaningful) {
+    if (day.date === '') next[`days.${index}.date`] = 'Bitte ein gültiges Datum angeben.'
+    day.meetingPoints.forEach((point, pointIndex) => {
+      if (pointIsBlank(point)) return
+      if (point.placeName.trim() === '') next[`days.${index}.meetingPoints.${pointIndex}.placeName`] = 'Bitte einen Ort mit höchstens 200 Zeichen angeben.'
+      if (point.meetsAt === '') next[`days.${index}.meetingPoints.${pointIndex}.meetsAt`] = 'Bitte die Uhrzeit des Treffpunkts angeben.'
+    })
+  }
+  return next
+}
+
+function labelsForEventErrors(fields: Record<string, string> | undefined): string[] {
+  if (!fields) return []
+  return Object.keys(fields).map((key) => {
+    if (key === 'title') return 'Titel der Veranstaltung'
+    if (key === 'clubs') return 'Verein'
+    if (key === 'days' || /\.date$/.test(key)) return 'Datum'
+    if (key.includes('placeName')) return 'Ort'
+    if (key.includes('meetsAt')) return 'Uhrzeit'
+    if (key.includes('vehicleId')) return 'Fahrzeug'
+    if (key.includes('rentalStatus')) return 'Mietstatus'
+    return ''
+  })
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {

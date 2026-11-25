@@ -12,7 +12,7 @@ export function CalendarPage() {
   const [events, setEvents] = useState<ClubEvent[]>([])
   const [error, setError] = useState<string | null>(null)
   const [cursor, setCursor] = useState(() => new Date())
-  const [mode, setMode] = useState<Mode>('month')
+  const [mode, setMode] = useState<Mode>(() => window.matchMedia('(max-width: 700px)').matches ? 'list' : 'month')
   const [mine, setMine] = useState(false)
   const member = useMember()
 
