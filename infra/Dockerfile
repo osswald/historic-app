@@ -10,7 +10,7 @@ RUN npm run build
 FROM dunglas/frankenphp:1-php8.4
 WORKDIR /app
 
-RUN install-php-extensions pdo_pgsql intl opcache
+RUN install-php-extensions pdo_pgsql intl opcache zip
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
