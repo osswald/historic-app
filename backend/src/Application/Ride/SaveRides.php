@@ -143,10 +143,10 @@ final class SaveRides
      * @return list<array{
      *     id: ?string,
      *     day: EventDay,
-     *     departureTime: \DateTimeImmutable,
-     *     departureOffset: DayOffset,
-     *     arrivalTime: \DateTimeImmutable,
-     *     arrivalOffset: DayOffset,
+     *     departureTime: ?\DateTimeImmutable,
+     *     departureOffset: ?DayOffset,
+     *     arrivalTime: ?\DateTimeImmutable,
+     *     arrivalOffset: ?DayOffset,
      *     trainNumber: string,
      *     originDidokCode: string,
      *     originName: string,
@@ -186,24 +186,30 @@ final class SaveRides
                 $errors['rides.'.$index.'.eventDayId'] = 'Bitte einen Veranstaltungstag dieser Veranstaltung wählen.';
             }
 
-            $departureOffset = $this->offset($ride['departureOffset'] ?? null);
-            $arrivalOffset = $this->offset($ride['arrivalOffset'] ?? null);
-            if (!$departureOffset instanceof DayOffset) {
-                $errors['rides.'.$index.'.departureOffset'] = 'Der Tagversatz der Abfahrt ist −1, 0 oder +1.';
-            }
-            if (!$arrivalOffset instanceof DayOffset) {
-                $errors['rides.'.$index.'.arrivalOffset'] = 'Der Tagversatz der Ankunft ist −1, 0 oder +1.';
-            }
-
             $departureRaw = trim((string) ($ride['departureTime'] ?? ''));
             $arrivalRaw = trim((string) ($ride['arrivalTime'] ?? ''));
-            $departureTime = $this->time($departureRaw);
-            $arrivalTime = $this->time($arrivalRaw);
-            if (!$departureTime instanceof \DateTimeImmutable) {
+            $departureTime = $departureRaw === '' ? null : $this->time($departureRaw);
+            $arrivalTime = $arrivalRaw === '' ? null : $this->time($arrivalRaw);
+            if ($departureRaw !== '' && !$departureTime instanceof \DateTimeImmutable) {
                 $errors['rides.'.$index.'.departureTime'] = 'Bitte eine gültige Abfahrtszeit angeben.';
             }
-            if (!$arrivalTime instanceof \DateTimeImmutable) {
+            if ($arrivalRaw !== '' && !$arrivalTime instanceof \DateTimeImmutable) {
                 $errors['rides.'.$index.'.arrivalTime'] = 'Bitte eine gültige Ankunftszeit angeben.';
+            }
+
+            $departureOffset = null;
+            $arrivalOffset = null;
+            if ($departureTime instanceof \DateTimeImmutable) {
+                $departureOffset = $this->offset($ride['departureOffset'] ?? null);
+                if (!$departureOffset instanceof DayOffset) {
+                    $errors['rides.'.$index.'.departureOffset'] = 'Der Tagversatz der Abfahrt ist −1, 0 oder +1.';
+                }
+            }
+            if ($arrivalTime instanceof \DateTimeImmutable) {
+                $arrivalOffset = $this->offset($ride['arrivalOffset'] ?? null);
+                if (!$arrivalOffset instanceof DayOffset) {
+                    $errors['rides.'.$index.'.arrivalOffset'] = 'Der Tagversatz der Ankunft ist −1, 0 oder +1.';
+                }
             }
 
             $trainNumber = trim((string) ($ride['trainNumber'] ?? ''));
@@ -233,10 +239,16 @@ final class SaveRides
                 $errors['rides.'.$index.'.arrivalTime'] = 'Die Ankunft muss nach der Abfahrt liegen.';
             }
 
-            if (!$day instanceof EventDay || !$departureOffset instanceof DayOffset || !$arrivalOffset instanceof DayOffset || !$departureTime instanceof \DateTimeImmutable || !$arrivalTime instanceof \DateTimeImmutable || $origin === null || $destination === null || $vehicles === null || $trainNumber === '' || mb_strlen($trainNumber) > 20) {
+            if (!$day instanceof EventDay || $origin === null || $destination === null || $vehicles === null || $trainNumber === '' || mb_strlen($trainNumber) > 20) {
                 continue;
             }
-            if (isset($errors['rides.'.$index.'.arrivalTime']) || isset($errors['rides.'.$index.'.internalNote'])) {
+            if (
+                isset($errors['rides.'.$index.'.departureTime'])
+                || isset($errors['rides.'.$index.'.departureOffset'])
+                || isset($errors['rides.'.$index.'.arrivalTime'])
+                || isset($errors['rides.'.$index.'.arrivalOffset'])
+                || isset($errors['rides.'.$index.'.internalNote'])
+            ) {
                 continue;
             }
 

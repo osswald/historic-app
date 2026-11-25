@@ -204,6 +204,160 @@ final class RidePlanTest extends ApiTestCase
         self::assertSame('external', $this->jsonBody($client)['rides'][0]['vehicles'][0]['kind']);
     }
 
+    public function testARideCanBeSavedWithoutDepartureOrArrival(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Zeiten offen');
+        $dayId = $created['days'][0]['id'];
+        $vehicleId = $this->createVehicle($client);
+        $eventId = $created['id'];
+
+        $open = $this->ride($dayId, $vehicleId, null, null, null, null);
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$open]]);
+        self::assertResponseIsSuccessful();
+        $saved = $this->jsonBody($client);
+        self::assertNull($saved['rides'][0]['departureTime']);
+        self::assertNull($saved['rides'][0]['departureOffset']);
+        self::assertNull($saved['rides'][0]['arrivalTime']);
+        self::assertNull($saved['rides'][0]['arrivalOffset']);
+        self::assertSame('30431', $saved['rides'][0]['trainNumber']);
+        self::assertSame('Winterthur', $saved['rides'][0]['origin']['name']);
+        self::assertSame($vehicleId, $saved['rides'][0]['vehicles'][0]['vehicleId']);
+
+        $rideId = $saved['rides'][0]['id'];
+        $departureOnly = $open;
+        $departureOnly['id'] = $rideId;
+        $departureOnly['departureTime'] = '09:10';
+        $departureOnly['departureOffset'] = -1;
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$departureOnly]]);
+        self::assertResponseIsSuccessful();
+        self::assertSame('09:10', $this->jsonBody($client)['rides'][0]['departureTime']);
+        self::assertSame(-1, $this->jsonBody($client)['rides'][0]['departureOffset']);
+        self::assertNull($this->jsonBody($client)['rides'][0]['arrivalTime']);
+        self::assertNull($this->jsonBody($client)['rides'][0]['arrivalOffset']);
+
+        $arrivalOnly = $departureOnly;
+        $arrivalOnly['departureTime'] = null;
+        $arrivalOnly['departureOffset'] = 1;
+        $arrivalOnly['arrivalTime'] = '06:30';
+        $arrivalOnly['arrivalOffset'] = 1;
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$arrivalOnly]]);
+        self::assertResponseIsSuccessful();
+        self::assertNull($this->jsonBody($client)['rides'][0]['departureTime']);
+        self::assertNull($this->jsonBody($client)['rides'][0]['departureOffset']);
+        self::assertSame('06:30', $this->jsonBody($client)['rides'][0]['arrivalTime']);
+        self::assertSame(1, $this->jsonBody($client)['rides'][0]['arrivalOffset']);
+
+        $missingOffset = $open;
+        $missingOffset['departureTime'] = '08:00';
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$missingOffset]]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            'Der Tagversatz der Abfahrt ist −1, 0 oder +1.',
+            $this->jsonBody($client)['errors']['rides.0.departureOffset'],
+        );
+
+        $invalid = $open;
+        $invalid['arrivalTime'] = '25:99';
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$invalid]]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            'Bitte eine gültige Ankunftszeit angeben.',
+            $this->jsonBody($client)['errors']['rides.0.arrivalTime'],
+        );
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', [
+            'rides' => [$this->ride($dayId, $vehicleId, '10:00', 0, '10:00', 0)],
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            'Die Ankunft muss nach der Abfahrt liegen.',
+            $this->jsonBody($client)['errors']['rides.0.arrivalTime'],
+        );
+
+        $withoutVehicle = $open;
+        $withoutVehicle['vehicles'] = [];
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$withoutVehicle]]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame(
+            'Bitte mindestens ein Fahrzeug angeben.',
+            $this->jsonBody($client)['errors']['rides.0.vehicles'],
+        );
+
+        $withoutTrain = $open;
+        $withoutTrain['trainNumber'] = '';
+        $this->request($client, 'PUT', '/api/v1/events/'.$eventId.'/rides', ['rides' => [$withoutTrain]]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Bitte eine Zugnummer angeben.', $this->jsonBody($client)['errors']['rides.0.trainNumber']);
+
+        $this->request($client, 'GET', '/api/v1/events/'.$eventId.'/rides');
+        self::assertResponseIsSuccessful();
+        self::assertNull($this->jsonBody($client)['rides'][0]['departureTime']);
+        self::assertSame('06:30', $this->jsonBody($client)['rides'][0]['arrivalTime']);
+    }
+
+    public function testMissingTimesOccupyTheEventDayAndASingleTimeIsThatInstant(): void
+    {
+        $client = $this->browser();
+        $vehicleId = $this->createVehicle($client, 'Be 4/6');
+        $openEvent = $this->createEvent($client, 'Offene Fahrt');
+        $other = $this->createEvent($client, 'Andere Fahrt');
+        $openDay = $openEvent['days'][0]['id'];
+        $otherDay = $other['days'][0]['id'];
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
+            'rides' => [$this->ride($openDay, $vehicleId, null, null, null, null)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $this->jsonBody($client)['warnings']);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$other['id'].'/rides', [
+            'rides' => [$this->ride($otherDay, $vehicleId, '18:00', -1, '20:00', -1)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $this->jsonBody($client)['warnings']);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$other['id'].'/rides', [
+            'rides' => [$this->ride($otherDay, $vehicleId, '23:00', -1, '01:00', 0)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'Offene Fahrt'));
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$other['id'].'/rides', [
+            'rides' => [$this->ride($otherDay, $vehicleId, '09:00', 0, '12:00', 0)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $this->jsonBody($client)['rides']);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
+            'rides' => [
+                $this->ride($openDay, $vehicleId, null, null, null, null),
+                $this->ride($openDay, $vehicleId, null, null, null, null),
+            ],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertCount(2, $this->jsonBody($client)['rides']);
+        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'doppelt eingeteilt'));
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
+            'rides' => [$this->ride($openDay, $vehicleId, '11:00', 0, null, null)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'Andere Fahrt'));
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
+            'rides' => [$this->ride($openDay, $vehicleId, null, null, '12:00', 0)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $this->jsonBody($client)['warnings']);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
+            'rides' => [$this->ride($openDay, $vehicleId, '09:00', 0, null, null)],
+        ]);
+        self::assertResponseIsSuccessful();
+        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'Andere Fahrt'));
+    }
+
     /** @param callable(KernelBrowser): void $callback */
     private function withGroups(string $groups, callable $callback): void
     {
@@ -296,10 +450,10 @@ final class RidePlanTest extends ApiTestCase
     private function ride(
         string $dayId,
         string $vehicleId,
-        string $departure,
-        int $departureOffset,
-        string $arrival,
-        int $arrivalOffset,
+        ?string $departure,
+        ?int $departureOffset,
+        ?string $arrival,
+        ?int $arrivalOffset,
         ?string $note = null,
     ): array {
         return [

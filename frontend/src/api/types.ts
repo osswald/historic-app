@@ -42,10 +42,10 @@ export type OwnVehicleOption = {
 export type Ride = {
   id: string
   eventDayId: string
-  departureTime: string
-  departureOffset: DayOffset
-  arrivalTime: string
-  arrivalOffset: DayOffset
+  departureTime: string | null
+  departureOffset: DayOffset | null
+  arrivalTime: string | null
+  arrivalOffset: DayOffset | null
   trainNumber: string
   origin: StationChoice
   destination: StationChoice

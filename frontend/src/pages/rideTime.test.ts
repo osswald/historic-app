@@ -14,6 +14,11 @@ describe('ride times', () => {
     expect(clockLabel('18:00', -1)).toBe('18:00 (Vortag)')
   })
 
+  it('leaves an unknown time open and without a day offset', () => {
+    expect(clockLabel(null, null)).toBe('offen')
+    expect(clockLabel('', null)).toBe('offen')
+  })
+
   it('labels the event day without inventing a time', () => {
     expect(dayLabel('2027-05-15')).toBe('15. Mai')
   })

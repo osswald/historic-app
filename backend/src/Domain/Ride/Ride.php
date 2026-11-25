@@ -29,17 +29,17 @@ class Ride
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private EventDay $eventDay;
 
-    #[ORM\Column(type: Types::TIME_IMMUTABLE)]
-    private \DateTimeImmutable $departureTime;
+    #[ORM\Column(type: Types::TIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $departureTime;
 
-    #[ORM\Column(type: Types::SMALLINT, enumType: DayOffset::class)]
-    private DayOffset $departureOffset;
+    #[ORM\Column(type: Types::SMALLINT, enumType: DayOffset::class, nullable: true)]
+    private ?DayOffset $departureOffset;
 
-    #[ORM\Column(type: Types::TIME_IMMUTABLE)]
-    private \DateTimeImmutable $arrivalTime;
+    #[ORM\Column(type: Types::TIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $arrivalTime;
 
-    #[ORM\Column(type: Types::SMALLINT, enumType: DayOffset::class)]
-    private DayOffset $arrivalOffset;
+    #[ORM\Column(type: Types::SMALLINT, enumType: DayOffset::class, nullable: true)]
+    private ?DayOffset $arrivalOffset;
 
     #[ORM\Column(length: 20)]
     private string $trainNumber;
@@ -70,10 +70,10 @@ class Ride
     public function __construct(
         Event $event,
         EventDay $eventDay,
-        \DateTimeImmutable $departureTime,
-        DayOffset $departureOffset,
-        \DateTimeImmutable $arrivalTime,
-        DayOffset $arrivalOffset,
+        ?\DateTimeImmutable $departureTime,
+        ?DayOffset $departureOffset,
+        ?\DateTimeImmutable $arrivalTime,
+        ?DayOffset $arrivalOffset,
         string $trainNumber,
         string $originDidokCode,
         string $originName,
@@ -86,6 +86,7 @@ class Ride
         $this->id = $id ?? Uuid::v7()->toRfc4122();
         $this->event = $event;
         $this->eventDay = $eventDay;
+        self::assertTimePair($departureTime, $departureOffset, $arrivalTime, $arrivalOffset);
         $this->departureTime = $departureTime;
         $this->departureOffset = $departureOffset;
         $this->arrivalTime = $arrivalTime;
@@ -115,22 +116,22 @@ class Ride
         return $this->eventDay;
     }
 
-    public function departureTime(): \DateTimeImmutable
+    public function departureTime(): ?\DateTimeImmutable
     {
         return $this->departureTime;
     }
 
-    public function departureOffset(): DayOffset
+    public function departureOffset(): ?DayOffset
     {
         return $this->departureOffset;
     }
 
-    public function arrivalTime(): \DateTimeImmutable
+    public function arrivalTime(): ?\DateTimeImmutable
     {
         return $this->arrivalTime;
     }
 
-    public function arrivalOffset(): DayOffset
+    public function arrivalOffset(): ?DayOffset
     {
         return $this->arrivalOffset;
     }
@@ -187,7 +188,7 @@ class Ride
 
     public function window(): RideWindow
     {
-        return RideWindow::on(
+        return RideWindow::occupying(
             $this->eventDay,
             $this->departureOffset,
             $this->departureTime,
@@ -198,10 +199,10 @@ class Ride
 
     public function revise(
         EventDay $eventDay,
-        \DateTimeImmutable $departureTime,
-        DayOffset $departureOffset,
-        \DateTimeImmutable $arrivalTime,
-        DayOffset $arrivalOffset,
+        ?\DateTimeImmutable $departureTime,
+        ?DayOffset $departureOffset,
+        ?\DateTimeImmutable $arrivalTime,
+        ?DayOffset $arrivalOffset,
         string $trainNumber,
         string $originDidokCode,
         string $originName,
@@ -210,6 +211,7 @@ class Ride
         ?string $internalNote,
         int $sortOrder,
     ): void {
+        self::assertTimePair($departureTime, $departureOffset, $arrivalTime, $arrivalOffset);
         $this->eventDay = $eventDay;
         $this->departureTime = $departureTime;
         $this->departureOffset = $departureOffset;
@@ -249,10 +251,10 @@ class Ride
         return [
             'eventId' => $this->event->id(),
             'eventDayId' => $this->eventDay->id(),
-            'departureTime' => $this->departureTime->format('H:i'),
-            'departureOffset' => $this->departureOffset->value,
-            'arrivalTime' => $this->arrivalTime->format('H:i'),
-            'arrivalOffset' => $this->arrivalOffset->value,
+            'departureTime' => $this->departureTime?->format('H:i'),
+            'departureOffset' => $this->departureOffset?->value,
+            'arrivalTime' => $this->arrivalTime?->format('H:i'),
+            'arrivalOffset' => $this->arrivalOffset?->value,
             'trainNumber' => $this->trainNumber,
             'originDidokCode' => $this->originDidokCode,
             'originName' => $this->originName,
@@ -261,5 +263,34 @@ class Ride
             'vehicles' => array_map(static fn (RideVehicle $assignment): array => $assignment->toAudit(), $this->assignments()),
             'internalNote' => $this->internalNote,
         ];
+    }
+
+    private static function assertTimePair(
+        ?\DateTimeImmutable $departureTime,
+        ?DayOffset $departureOffset,
+        ?\DateTimeImmutable $arrivalTime,
+        ?DayOffset $arrivalOffset,
+    ): void {
+        if (($departureTime === null) !== ($departureOffset === null) || ($arrivalTime === null) !== ($arrivalOffset === null)) {
+            throw new \InvalidArgumentException('Eine Zeit und ihr Tagversatz gehören zusammen.');
+        }
+    }
+
+    private function applySchedule(
+        ?\DateTimeImmutable $departureTime,
+        ?DayOffset $departureOffset,
+        ?\DateTimeImmutable $arrivalTime,
+        ?DayOffset $arrivalOffset,
+    ): void {
+        if (($departureTime === null) !== ($departureOffset === null)) {
+            throw new \InvalidArgumentException('Der Tagversatz der Abfahrt gilt nur zusammen mit der Abfahrtszeit.');
+        }
+        if (($arrivalTime === null) !== ($arrivalOffset === null)) {
+            throw new \InvalidArgumentException('Der Tagversatz der Ankunft gilt nur zusammen mit der Ankunftszeit.');
+        }
+        $this->departureTime = $departureTime;
+        $this->departureOffset = $departureOffset;
+        $this->arrivalTime = $arrivalTime;
+        $this->arrivalOffset = $arrivalOffset;
     }
 }

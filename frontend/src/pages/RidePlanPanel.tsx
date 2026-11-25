@@ -16,9 +16,9 @@ type RideDraft = {
   id?: string
   eventDayId: string
   departureTime: string
-  departureOffset: DayOffset
+  departureOffset: DayOffset | null
   arrivalTime: string
-  arrivalOffset: DayOffset
+  arrivalOffset: DayOffset | null
   trainNumber: string
   origin: StationChoice | null
   destination: StationChoice | null
@@ -70,10 +70,10 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
           rides: drafts.map((ride) => ({
             id: ride.id,
             eventDayId: ride.eventDayId,
-            departureTime: ride.departureTime,
-            departureOffset: ride.departureOffset,
-            arrivalTime: ride.arrivalTime,
-            arrivalOffset: ride.arrivalOffset,
+            departureTime: ride.departureTime === '' ? null : ride.departureTime,
+            departureOffset: ride.departureTime === '' ? null : ride.departureOffset,
+            arrivalTime: ride.arrivalTime === '' ? null : ride.arrivalTime,
+            arrivalOffset: ride.arrivalTime === '' ? null : ride.arrivalOffset,
             trainNumber: ride.trainNumber,
             origin: ride.origin,
             destination: ride.destination,
@@ -119,7 +119,7 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
       <div className="panel">
         <div className="panel-head"><h2>Abfahrt und Ankunft</h2></div>
         <div className="panel-inner" style={{ paddingTop: 0 }}>
-          <div className="note">Erfasst werden Zugnummer, Start- und Zielbahnhof sowie Abfahrt und Ankunft. Der Tagversatz ist der Vortag, der Veranstaltungstag oder der Folgetag. Zwischenzeiten werden nicht geführt.</div>
+          <div className="note">Erfasst werden Zugnummer, Start- und Zielbahnhof und mindestens ein Fahrzeug. Abfahrt und Ankunft können offen bleiben. Der Tagversatz gilt nur, wenn die zugehörige Zeit gesetzt ist. Zwischenzeiten werden nicht geführt.</div>
         </div>
         {rides.length === 0 ? <p className="empty">Noch keine Fahrt erfasst.</p> : (
           <>
@@ -186,19 +186,23 @@ export function RidePlanPanel({ event }: { event: ClubEvent }) {
                   </div>
                   <div className="formrow cols2">
                     <Field error={fieldErrors[`rides.${index}.departureTime`]} label="Abfahrt">
-                      <input className="input" type="time" value={ride.departureTime} onChange={(input) => updateDraft(ride.key, { departureTime: input.target.value })} />
+                      <input className="input" type="time" value={ride.departureTime} onChange={(input) => updateDraft(ride.key, { departureTime: input.target.value, departureOffset: input.target.value === '' ? null : (ride.departureOffset ?? 0) })} />
                     </Field>
-                    <Field error={fieldErrors[`rides.${index}.departureOffset`]} label="Tag der Abfahrt">
-                      <OffsetSelect value={ride.departureOffset} onChange={(offset) => updateDraft(ride.key, { departureOffset: offset })} />
-                    </Field>
+                    {ride.departureTime !== '' ? (
+                      <Field error={fieldErrors[`rides.${index}.departureOffset`]} label="Tag der Abfahrt">
+                        <OffsetSelect value={ride.departureOffset ?? 0} onChange={(offset) => updateDraft(ride.key, { departureOffset: offset })} />
+                      </Field>
+                    ) : null}
                   </div>
                   <div className="formrow cols2">
                     <Field error={fieldErrors[`rides.${index}.arrivalTime`]} label="Ankunft">
-                      <input className="input" type="time" value={ride.arrivalTime} onChange={(input) => updateDraft(ride.key, { arrivalTime: input.target.value })} />
+                      <input className="input" type="time" value={ride.arrivalTime} onChange={(input) => updateDraft(ride.key, { arrivalTime: input.target.value, arrivalOffset: input.target.value === '' ? null : (ride.arrivalOffset ?? 0) })} />
                     </Field>
-                    <Field error={fieldErrors[`rides.${index}.arrivalOffset`]} label="Tag der Ankunft">
-                      <OffsetSelect value={ride.arrivalOffset} onChange={(offset) => updateDraft(ride.key, { arrivalOffset: offset })} />
-                    </Field>
+                    {ride.arrivalTime !== '' ? (
+                      <Field error={fieldErrors[`rides.${index}.arrivalOffset`]} label="Tag der Ankunft">
+                        <OffsetSelect value={ride.arrivalOffset ?? 0} onChange={(offset) => updateDraft(ride.key, { arrivalOffset: offset })} />
+                      </Field>
+                    ) : null}
                   </div>
                   <div className="formfield">
                     <label>Fahrzeuge</label>
@@ -339,9 +343,9 @@ function blankRide(event: ClubEvent, ownVehicles: OwnVehicleOption[]): RideDraft
     key: crypto.randomUUID(),
     eventDayId: event.days[0]?.id ?? '',
     departureTime: '',
-    departureOffset: 0,
+    departureOffset: null,
     arrivalTime: '',
-    arrivalOffset: 0,
+    arrivalOffset: null,
     trainNumber: '',
     origin: null,
     destination: null,
@@ -355,10 +359,10 @@ function toDraft(ride: Ride): RideDraft {
     key: ride.id,
     id: ride.id,
     eventDayId: ride.eventDayId,
-    departureTime: ride.departureTime,
-    departureOffset: ride.departureOffset,
-    arrivalTime: ride.arrivalTime,
-    arrivalOffset: ride.arrivalOffset,
+    departureTime: ride.departureTime ?? '',
+    departureOffset: ride.departureTime ? ride.departureOffset : null,
+    arrivalTime: ride.arrivalTime ?? '',
+    arrivalOffset: ride.arrivalTime ? ride.arrivalOffset : null,
     trainNumber: ride.trainNumber,
     origin: ride.origin,
     destination: ride.destination,

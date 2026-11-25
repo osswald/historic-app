@@ -43,10 +43,10 @@ final class RidePresenter
         return [
             'id' => $ride->id(),
             'eventDayId' => $ride->eventDay()->id(),
-            'departureTime' => $ride->departureTime()->format('H:i'),
-            'departureOffset' => $ride->departureOffset()->value,
-            'arrivalTime' => $ride->arrivalTime()->format('H:i'),
-            'arrivalOffset' => $ride->arrivalOffset()->value,
+            'departureTime' => $ride->departureTime()?->format('H:i'),
+            'departureOffset' => $ride->departureOffset()?->value,
+            'arrivalTime' => $ride->arrivalTime()?->format('H:i'),
+            'arrivalOffset' => $ride->arrivalOffset()?->value,
             'trainNumber' => $ride->trainNumber(),
             'origin' => [
                 'didokCode' => $ride->originDidokCode(),
