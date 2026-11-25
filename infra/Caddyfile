@@ -1,4 +1,8 @@
 {
+	# The address enables Caddy's ZeroSSL fallback. Let's Encrypt allows only
+	# five new certificates for this exact name per week. Without a second
+	# issuer, HTTPS then has no certificate to present.
+	email christoph.osswald@dvzo.ch
 	frankenphp
 	order php_server before file_server
 }
