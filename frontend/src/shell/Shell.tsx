@@ -46,10 +46,8 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <div aria-hidden="true" className="brandmark">⇄</div>
-          <div className="brand-name">
-            SBB Historic-Team Winterthur
-            <div className="brand-sub">Industriekulturerbe auf Schienen.</div>
+          <div className="brand-logo">
+            <img src="/club-logo.png" alt="Historic Team Winterthur" />
           </div>
         </div>
         <div className="top-actions">

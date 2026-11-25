@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
 import { useMember, useToast } from '../shell/context'
+import { RidePlanPanel } from './RidePlanPanel'
 
 const TABS = [
   { id: 'overview', label: 'Übersicht' },
@@ -108,7 +109,7 @@ export function EventDetailPage() {
           </div>
         </div>
       ) : null}
-      {tab === 'rides' ? <LaterNote text="Fahrten, Abschnitte und Anordnungen folgen als eigenes Modul. Zwischenzeiten werden nicht erfasst. Massgebend bleibt die verlinkte Anordnung." /> : null}
+      {tab === 'rides' ? <RidePlanPanel event={event} /> : null}
       {tab === 'gastro' ? <LaterNote text="Die Gastronomieplanung gehört zur Veranstaltung. Getränke kommen später aus den CashCtrl-Artikeln des Supporterclubs." /> : null}
       {tab === 'tasks' ? <LaterNote text="Aufgabenlisten bleiben in der bestehenden Aufgaben-App. Hier erscheinen sie, sobald die Verknüpfung steht." /> : null}
     </section>

@@ -59,6 +59,16 @@ final class MemberUser implements UserInterface
         return in_array('ROLE_ORGANIZER', $this->getRoles(), true);
     }
 
+    public function isRidePlanner(): bool
+    {
+        return in_array('ROLE_RIDE_PLANNER', $this->getRoles(), true);
+    }
+
+    public function canPlanRides(): bool
+    {
+        return $this->isOrganizer() || $this->isRidePlanner();
+    }
+
     public function eraseCredentials(): void
     {
     }
@@ -71,6 +81,7 @@ final class MemberUser implements UserInterface
             'displayName' => $this->displayName,
             'groups' => $this->groups,
             'canOrganize' => $this->isOrganizer(),
+            'canPlanRides' => $this->canPlanRides(),
         ];
     }
 }

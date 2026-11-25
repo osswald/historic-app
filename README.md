@@ -32,6 +32,10 @@ cd frontend && npm test
 
 Die Backend-Tests legen die Datenbank `app_test` an und lassen die Demo-Datenbank `app` unangetastet. Lokal ist Postgres auf Port 5433. CI nutzt einen Postgres-16-Service.
 
+## Anbindungen
+
+Zugangsdaten für spätere Integrationen stehen in `.local/anbindungen.env`. Eine Kopie ist unnötig, wenn diese Datei schon existiert; die Schlüssel dort ausfüllen. Die Datei wird nicht eingecheckt. Die Vorlage ohne Werte liegt in `infra/anbindungen.env.example`. Die Fahrtenplanung verwendet diese Schlüssel noch nicht.
+
 ## Deploy
 
 `.github/workflows/ci.yml` testet bei Push und Pull Request. `.github/workflows/deploy.yml` startet nur nach grünem CI auf `main` und spielt per SSH und Docker Compose auf https://app.historic-winterthur.ch aus. Die Testinstanz in der Infomaniak Public Cloud (OpenStack, Ubuntu LTS, Docker) läuft. Die Floating IP ist `195.15.196.156`. DNS A/AAAA von `app.historic-winterthur.ch` muss auf diese Floating IP zeigen.

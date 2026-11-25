@@ -6,6 +6,7 @@ namespace App\Command;
 
 use App\Domain\Event\Attendance;
 use App\Domain\Event\Event;
+use App\Domain\Event\EventDay;
 use App\Domain\Event\EventRepository;
 use App\Domain\Event\EventStatus;
 use App\Domain\Poll\Daypart;
@@ -13,6 +14,9 @@ use App\Domain\Poll\Poll;
 use App\Domain\Poll\PollKind;
 use App\Domain\Poll\PollRepository;
 use App\Domain\Poll\PollStatus;
+use App\Domain\Ride\DayOffset;
+use App\Domain\Ride\Ride;
+use App\Domain\Ride\RideRepository;
 use App\Security\DevTokenAuthenticator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -20,12 +24,15 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'app:seed-demo', description: 'Legt die Beispielveranstaltungen und die Depottag-Umfrage an, falls sie noch fehlen.')]
+#[AsCommand(name: 'app:seed-demo', description: 'Legt die Beispielveranstaltungen, eine Beispiel-Fahrt und die Depottag-Umfrage an, falls sie noch fehlen.')]
 final class SeedDemoCommand extends Command
 {
+    private const OBERLAND_RIDE = '6f1a9b10-3333-4333-8333-333333333333';
+
     public function __construct(
         private EventRepository $events,
         private PollRepository $polls,
+        private RideRepository $rides,
         private EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
@@ -39,6 +46,9 @@ final class SeedDemoCommand extends Command
         if ($this->events->all() === []) {
             $this->seedEvents($now);
             $output->writeln('Drei Beispielveranstaltungen wurden angelegt.');
+            $seeded = true;
+        } elseif ($this->backfillOberlandRide()) {
+            $output->writeln('Die Beispiel-Fahrt der Vereinsfahrt Zürcher Oberland wurde angelegt.');
             $seeded = true;
         }
 
@@ -104,7 +114,7 @@ final class SeedDemoCommand extends Command
         );
         $this->events->add($supper);
 
-        $ride = $this->make(
+        $outing = $this->make(
             '6f1a9b10-3333-4333-8333-333333333331',
             'Vereinsfahrt Zürcher Oberland',
             ['historic'],
@@ -120,7 +130,60 @@ final class SeedDemoCommand extends Command
             'Besammlung 08:35, Perron gemäss Einladung.',
             $now,
         );
-        $this->events->add($ride);
+        $this->events->add($outing);
+        $day = $outing->day('6f1a9b10-3333-4333-8333-333333333332');
+        if ($day instanceof EventDay) {
+            $this->rides->add($this->demoRide($outing, $day));
+        }
+    }
+
+    private function backfillOberlandRide(): bool
+    {
+        foreach ($this->events->all() as $event) {
+            if ($event->title() !== 'Vereinsfahrt Zürcher Oberland') {
+                continue;
+            }
+            if ($this->rides->forEvent($event->id()) !== []) {
+                return false;
+            }
+            $day = $this->oberlandDay($event);
+            if (!$day instanceof EventDay) {
+                return false;
+            }
+            $this->rides->add($this->demoRide($event, $day));
+
+            return true;
+        }
+
+        return false;
+    }
+
+    private function oberlandDay(Event $event): ?EventDay
+    {
+        foreach ($event->days() as $day) {
+            if ($day->occursOn()->format('Y-m-d') === '2027-05-15') {
+                return $day;
+            }
+        }
+
+        return $event->days()[0] ?? null;
+    }
+
+    private function demoRide(Event $event, EventDay $day): Ride
+    {
+        return new Ride(
+            $event,
+            $day,
+            $this->time('09:10'),
+            DayOffset::Same,
+            $this->time('17:30'),
+            DayOffset::Same,
+            'Vereinsfahrzeug',
+            true,
+            null,
+            0,
+            self::OBERLAND_RIDE,
+        );
     }
 
     private function seedDepotPoll(\DateTimeImmutable $now): void

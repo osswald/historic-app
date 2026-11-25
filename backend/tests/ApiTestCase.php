@@ -74,7 +74,7 @@ abstract class ApiTestCase extends WebTestCase
 
         $schema = $connection->createSchemaManager();
         $present = [];
-        foreach (['poll_vote', 'poll_answer', 'poll_option', 'poll', 'event_response', 'event_day', 'event', 'audit_entry'] as $table) {
+        foreach (['ride', 'poll_vote', 'poll_answer', 'poll_option', 'poll', 'event_response', 'event_day', 'event', 'audit_entry'] as $table) {
             if ($schema->tablesExist([$table])) {
                 $present[] = '"'.$table.'"';
             }

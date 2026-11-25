@@ -3,6 +3,27 @@ export type Member = {
   displayName: string
   groups: string[]
   canOrganize: boolean
+  canPlanRides: boolean
+}
+
+export type DayOffset = -1 | 0 | 1
+
+export type Ride = {
+  id: string
+  eventDayId: string
+  departureTime: string
+  departureOffset: DayOffset
+  arrivalTime: string
+  arrivalOffset: DayOffset
+  vehicleLabel: string
+  clubVehicle: boolean
+  internalNote: string | null
+}
+
+export type RidePlan = {
+  canEdit: boolean
+  warnings: string[]
+  rides: Ride[]
 }
 
 export type Answer = 'yes' | 'no'
