@@ -1,0 +1,9 @@
+backend/vendor/
+backend/var/
+backend/.env.local
+backend/.env.*.local
+frontend/node_modules/
+frontend/dist/
+.local/
+.design.css
+.design-body.html
