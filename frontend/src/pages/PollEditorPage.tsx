@@ -8,6 +8,10 @@ type DepotDay = { key: string; date: string; morning: SlotDraft; afternoon: Slot
 type NormalOption = { key: string; id?: string; date: string; startsAt: string; endsAt: string }
 
 const EMPTY_SLOT: SlotDraft = { on: true }
+const MONTH_NAMES = [
+  'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+]
 
 function blankDepotDay(): DepotDay {
   return { key: crypto.randomUUID(), date: '', morning: { ...EMPTY_SLOT }, afternoon: { ...EMPTY_SLOT }, evening: { ...EMPTY_SLOT } }
@@ -17,18 +21,69 @@ function blankNormal(): NormalOption {
   return { key: crypto.randomUUID(), date: '', startsAt: '', endsAt: '' }
 }
 
+function defaultMonth(): string {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() + 2
+  if (month > 12) return `${year + 1}-01`
+  return `${year}-${String(month).padStart(2, '0')}`
+}
+
+function datesInMonth(yearMonth: string): string[] {
+  const match = /^(\d{4})-(\d{2})$/.exec(yearMonth)
+  if (!match) return []
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (month < 1 || month > 12) return []
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return Array.from({ length: last }, (_, index) => {
+    const day = String(index + 1).padStart(2, '0')
+    return `${match[1]}-${match[2]}-${day}`
+  })
+}
+
+function monthTitle(yearMonth: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(yearMonth)
+  if (!match) return ''
+  const month = Number(match[2])
+  return `Depottage ${MONTH_NAMES[month - 1]} ${match[1]}`
+}
+
+function fillDepotMonth(yearMonth: string, existing: DepotDay[]): DepotDay[] {
+  const byDate = new Map(existing.filter((day) => day.date !== '').map((day) => [day.date, day]))
+  return datesInMonth(yearMonth).map((date) => {
+    const previous = byDate.get(date)
+    if (previous) {
+      return {
+        ...previous,
+        morning: { ...previous.morning, on: true },
+        afternoon: { ...previous.afternoon, on: true },
+        evening: { ...previous.evening, on: true },
+      }
+    }
+    return {
+      key: crypto.randomUUID(),
+      date,
+      morning: { ...EMPTY_SLOT },
+      afternoon: { ...EMPTY_SLOT },
+      evening: { ...EMPTY_SLOT },
+    }
+  })
+}
+
 export function PollEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const editing = Boolean(id)
-  const [title, setTitle] = useState('')
+  const [title, setTitle] = useState(() => (id ? '' : monthTitle(defaultMonth())))
   const [kind, setKind] = useState<'normal' | 'depot'>('depot')
   const [status, setStatus] = useState<'open' | 'closed'>('open')
   const [clubs, setClubs] = useState<Array<'historic' | 'supporter'>>(['historic'])
   const [description, setDescription] = useState('')
   const [location, setLocation] = useState('')
   const [deadline, setDeadline] = useState('')
-  const [depotDays, setDepotDays] = useState<DepotDay[]>([blankDepotDay()])
+  const [depotMonth, setDepotMonth] = useState(defaultMonth)
+  const [depotDays, setDepotDays] = useState<DepotDay[]>(() => (id ? [blankDepotDay()] : fillDepotMonth(defaultMonth(), [])))
   const [normalOptions, setNormalOptions] = useState<NormalOption[]>([blankNormal()])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
@@ -45,13 +100,16 @@ export function PollEditorPage() {
       setLocation(poll.location ?? '')
       setDeadline(poll.deadline ?? '')
       if (poll.kind === 'depot') {
-        setDepotDays(poll.days.map((day) => ({
+        const days = poll.days.map((day) => ({
           key: day.date,
           date: day.date,
           morning: slotFrom(day.options, 'morning'),
           afternoon: slotFrom(day.options, 'afternoon'),
           evening: slotFrom(day.options, 'evening'),
-        })))
+        }))
+        setDepotDays(days)
+        const first = days[0]?.date
+        if (first) setDepotMonth(first.slice(0, 7))
       } else {
         setNormalOptions(poll.options.map((option) => ({
           key: option.id,
@@ -66,6 +124,14 @@ export function PollEditorPage() {
 
   function toggleClub(club: 'historic' | 'supporter') {
     setClubs((current) => current.includes(club) ? current.filter((item) => item !== club) : [...current, club])
+  }
+
+  function applyMonth(yearMonth: string) {
+    setDepotMonth(yearMonth)
+    setDepotDays((current) => fillDepotMonth(yearMonth, current))
+    if (!editing && title.trim() === '') {
+      setTitle(monthTitle(yearMonth))
+    }
   }
 
   async function save(event: FormEvent) {
@@ -110,7 +176,7 @@ export function PollEditorPage() {
           <div>
             <div className="eyebrow">Organisation</div>
             <h1>{editing ? 'Umfrage bearbeiten' : 'Umfrage anlegen'}</h1>
-            <div className="hello">Depottage haben nur Vormittag, Nachmittag und Abend, ohne Uhrzeit.</div>
+            <div className="hello">Monatliche Depottage: alle Kalendertage mit Vormittag, Nachmittag und Abend, ohne Uhrzeit.</div>
           </div>
           <button className="btn primary" disabled={busy} type="submit">Änderungen speichern</button>
         </div>
@@ -124,8 +190,19 @@ export function PollEditorPage() {
                   <input className="input" value={title} onChange={(event) => setTitle(event.target.value)} />
                 </Field>
                 <Field error={errors.kind} label="Art">
-                  <select className="input" disabled={editing} value={kind} onChange={(event) => setKind(event.target.value as 'normal' | 'depot')}>
-                    <option value="depot">Depottag</option>
+                  <select
+                    className="input"
+                    disabled={editing}
+                    value={kind}
+                    onChange={(event) => {
+                      const next = event.target.value as 'normal' | 'depot'
+                      setKind(next)
+                      if (next === 'depot' && depotDays.length <= 1 && !depotDays[0]?.date) {
+                        applyMonth(depotMonth || defaultMonth())
+                      }
+                    }}
+                  >
+                    <option value="depot">Depottage (Monat)</option>
                     <option value="normal">Terminfindung</option>
                   </select>
                 </Field>
@@ -158,23 +235,60 @@ export function PollEditorPage() {
               <div className="panel-head"><h2>Optionen</h2></div>
               <div className="panel-inner">
                 {errors.options ? <div className="field-error">{errors.options}</div> : null}
-                {kind === 'depot' ? depotDays.map((day, index) => (
-                  <div className="day-block" key={day.key}>
-                    <h3>Tag {index + 1}</h3>
-                    <Field error={errors[`options.${index}.date`]} label="Datum">
-                      <input className="input" type="date" value={day.date} onChange={(event) => setDepotDays((current) => current.map((item) => item.key === day.key ? { ...item, date: event.target.value } : item))} />
-                    </Field>
-                    <div className="check-line">
-                      {(['morning', 'afternoon', 'evening'] as const).map((daypart) => (
-                        <label className="toggle" key={daypart}>
-                          <input checked={day[daypart].on} type="checkbox" onChange={() => setDepotDays((current) => current.map((item) => item.key === day.key ? { ...item, [daypart]: { ...item[daypart], on: !item[daypart].on } } : item))} />
-                          {daypart === 'morning' ? 'Vormittag' : daypart === 'afternoon' ? 'Nachmittag' : 'Abend'}
-                        </label>
-                      ))}
+                {kind === 'depot' ? (
+                  <>
+                    <div className="formrow cols2" style={{ marginBottom: 12 }}>
+                      <Field label="Monat der Depottage">
+                        <input
+                          className="input"
+                          type="month"
+                          value={depotMonth}
+                          onChange={(event) => setDepotMonth(event.target.value)}
+                        />
+                      </Field>
+                      <div className="formfield">
+                        <label>&nbsp;</label>
+                        <button className="btn light" type="button" onClick={() => applyMonth(depotMonth)}>
+                          Alle Kalendertage eintragen
+                        </button>
+                      </div>
                     </div>
-                    {depotDays.length > 1 ? <button className="btn small light" type="button" onClick={() => setDepotDays((current) => current.filter((item) => item.key !== day.key))}>Tag entfernen</button> : null}
-                  </div>
-                )) : normalOptions.map((option, index) => (
+                    <p className="muted" style={{ margin: '0 0 12px' }}>
+                      {depotDays.filter((day) => day.date).length} Tage · je Vormittag, Nachmittag und Abend. Einzelne Tage bleiben manuell anpassbar.
+                    </p>
+                    {depotDays.map((day, index) => (
+                      <div className="depot-day-line" key={day.key}>
+                        <div className="formfield">
+                          <input
+                            aria-label={`Datum Tag ${index + 1}`}
+                            className="input"
+                            type="date"
+                            value={day.date}
+                            onChange={(event) => setDepotDays((current) => current.map((item) => item.key === day.key ? { ...item, date: event.target.value } : item))}
+                          />
+                          {errors[`options.${index}.date`] ? <div className="field-error">{errors[`options.${index}.date`]}</div> : null}
+                        </div>
+                        <div className="check-line depot-slots">
+                          {(['morning', 'afternoon', 'evening'] as const).map((daypart) => (
+                            <label className="toggle" key={daypart}>
+                              <input
+                                checked={day[daypart].on}
+                                type="checkbox"
+                                onChange={() => setDepotDays((current) => current.map((item) => item.key === day.key ? { ...item, [daypart]: { ...item[daypart], on: !item[daypart].on } } : item))}
+                              />
+                              {daypart === 'morning' ? 'Vormittag' : daypart === 'afternoon' ? 'Nachmittag' : 'Abend'}
+                            </label>
+                          ))}
+                        </div>
+                        {depotDays.length > 1 ? (
+                          <button className="btn small light" type="button" onClick={() => setDepotDays((current) => current.filter((item) => item.key !== day.key))}>
+                            Entfernen
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </>
+                ) : normalOptions.map((option, index) => (
                   <div className="day-block" key={option.key}>
                     <h3>Termin {index + 1}</h3>
                     <div className="formrow cols2">
@@ -215,10 +329,10 @@ function slotFrom(options: PollDetail['options'], daypart: Daypart): SlotDraft {
   return option ? { id: option.id, on: true } : { on: false }
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+function Field({ label, error, children }: { label?: string; error?: string; children: ReactNode }) {
   return (
     <div className="formfield">
-      <label>{label}</label>
+      {label ? <label>{label}</label> : null}
       {children}
       {error ? <div className="field-error">{error}</div> : null}
     </div>

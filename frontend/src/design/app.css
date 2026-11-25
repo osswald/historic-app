@@ -116,6 +116,12 @@ textarea.input { min-height: 110px; font: inherit; }
 .surveyrow.normal { grid-template-columns: minmax(180px, 1fr) auto; }
 .slot-label { font-size: 12px; font-weight: 700; margin-bottom: 6px; color: var(--green); }
 .poll-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+.depot-day-line { display: grid; grid-template-columns: minmax(150px, 180px) minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--stroke); }
+.depot-day-line .formfield { margin: 0; }
+.depot-day-line .depot-slots { margin: 0; }
+@media (max-width: 720px) {
+  .depot-day-line { grid-template-columns: 1fr; align-items: stretch; }
+}
 .yes-names { color: var(--muted); font-size: 11px; margin-top: 4px; }
 .surveyrows, .panel-inner .surveyrow + .surveyrow { margin-top: 9px; }
 .note a { color: var(--red); }

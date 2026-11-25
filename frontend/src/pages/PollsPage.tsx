@@ -21,7 +21,7 @@ export function PollsPage() {
         <div>
           <div className="eyebrow">Terminumfragen</div>
           <h1>Umfragen</h1>
-          <div className="hello">Terminsuche und monatliche Depottage. Eine Antwort gilt erst nach dem Speichern.</div>
+          <div className="hello">Terminsuche und manuell angelegte monatliche Depottage mit allen Kalendertagen. Eine Antwort gilt erst nach dem Speichern.</div>
         </div>
         {member?.canOrganize ? <Link className="btn primary" to="/umfragen/neu">+ Umfrage</Link> : null}
       </div>

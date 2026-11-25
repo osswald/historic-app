@@ -117,6 +117,9 @@ export function PollDetailPage() {
         </div>
         <div className="panel-inner" style={{ paddingTop: 0 }}>
           <p className="muted" style={{ margin: '0 0 13px' }}>
+            {poll.kind === 'depot'
+              ? 'Monatsumfrage: alle eingetragenen Kalendertage mit Vormittag, Nachmittag und Abend. '
+              : ''}
             Erst Speichern setzt Ja oder Nein für alle aktuellen Optionen. Eine später ergänzte oder geänderte Option bleibt offen und verlangt eine Ergänzung.
           </p>
           {poll.kind === 'depot' ? poll.days.map((day) => (

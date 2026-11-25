@@ -35,6 +35,7 @@ final class SeedDemoCommand extends Command
     private const BE46 = '6f1a9b10-5555-4555-8555-555555555551';
     private const BDE = '6f1a9b10-5555-4555-8555-555555555552';
     private const SPEISE = '6f1a9b10-5555-4555-8555-555555555553';
+    private const DEPOT_POLL = '6f1a9b10-4444-4444-8444-444444444441';
 
     public function __construct(
         private EventRepository $events,
@@ -68,7 +69,10 @@ final class SeedDemoCommand extends Command
 
         if ($this->polls->all() === []) {
             $this->seedDepotPoll($now);
-            $output->writeln('Die Depottage-Umfrage Januar 2027 wurde angelegt.');
+            $output->writeln('Die Depottage-Umfrage Januar 2027 wurde angelegt (alle Kalendertage).');
+            $seeded = true;
+        } elseif ($this->expandDepotPollToFullMonth()) {
+            $output->writeln('Die Depottage-Umfrage Januar 2027 wurde auf alle Kalendertage ergänzt.');
             $seeded = true;
         }
 
@@ -252,16 +256,48 @@ final class SeedDemoCommand extends Command
             ['historic'],
             null,
             $now,
-            '6f1a9b10-4444-4444-8444-444444444441',
+            self::DEPOT_POLL,
         );
-        $sort = 0;
-        foreach (['2027-01-02', '2027-01-03', '2027-01-09', '2027-01-10', '2027-01-16', '2027-01-17', '2027-01-23', '2027-01-24', '2027-01-30', '2027-01-31'] as $date) {
+        $this->addJanuary2027Days($poll);
+        $this->polls->add($poll);
+    }
+
+    private function expandDepotPollToFullMonth(): bool
+    {
+        $poll = $this->polls->byId(self::DEPOT_POLL);
+        if (!$poll instanceof Poll || $poll->kind() !== PollKind::Depot) {
+            return false;
+        }
+
+        $before = count($poll->options());
+        $this->addJanuary2027Days($poll);
+
+        return count($poll->options()) > $before;
+    }
+
+    private function addJanuary2027Days(Poll $poll): void
+    {
+        $existing = [];
+        foreach ($poll->options() as $option) {
+            $daypart = $option->daypart();
+            if (!$daypart instanceof Daypart) {
+                continue;
+            }
+            $existing[$option->occursOn()->format('Y-m-d').'|'.$daypart->value] = true;
+        }
+
+        $sort = count($poll->options());
+        for ($day = 1; $day <= 31; ++$day) {
+            $date = $this->date(sprintf('2027-01-%02d', $day));
             foreach ([Daypart::Morning, Daypart::Afternoon, Daypart::Evening] as $daypart) {
-                $poll->addOption($this->date($date), $daypart, null, null, $sort);
+                $key = $date->format('Y-m-d').'|'.$daypart->value;
+                if (isset($existing[$key])) {
+                    continue;
+                }
+                $poll->addOption($date, $daypart, null, null, $sort);
                 ++$sort;
             }
         }
-        $this->polls->add($poll);
     }
 
     /** @param list<string> $clubs
