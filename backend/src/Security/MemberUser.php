@@ -74,6 +74,11 @@ final class MemberUser implements UserInterface
         return in_array('ROLE_FLEET', $this->getRoles(), true);
     }
 
+    public function isGastro(): bool
+    {
+        return in_array('ROLE_GASTRO', $this->getRoles(), true);
+    }
+
     public function isAdmin(): bool
     {
         return in_array('ROLE_ADMIN', $this->getRoles(), true);

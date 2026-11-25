@@ -60,6 +60,29 @@ export type RidePlan = {
   ownVehicles: OwnVehicleOption[]
 }
 
+export type GastroDish = {
+  id: string
+  name: string
+  portions: number
+}
+
+export type GastroResponsible = {
+  sub: string
+  name: string
+}
+
+export type GastroPlan = {
+  id: string
+  notes: string | null
+  dishes: GastroDish[]
+  responsible: GastroResponsible[]
+}
+
+export type GastroView = {
+  canEdit: boolean
+  plan: GastroPlan | null
+}
+
 export type VehicleStatus = 'ready' | 'limited' | 'blocked'
 
 export type BatteryCharge = {

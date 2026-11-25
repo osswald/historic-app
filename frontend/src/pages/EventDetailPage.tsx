@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
 import { useMember, useToast } from '../shell/context'
+import { GastroPlanPanel } from './GastroPlanPanel'
 import { RidePlanPanel } from './RidePlanPanel'
 
 const TABS = [
@@ -110,7 +111,7 @@ export function EventDetailPage() {
         </div>
       ) : null}
       {tab === 'rides' ? <RidePlanPanel event={event} /> : null}
-      {tab === 'gastro' ? <LaterNote text="Die Gastronomieplanung gehört zur Veranstaltung. Getränke kommen später aus den CashCtrl-Artikeln des Supporterclubs." /> : null}
+      {tab === 'gastro' ? <GastroPlanPanel event={event} /> : null}
       {tab === 'tasks' ? <LaterNote text="Aufgabenlisten bleiben in der bestehenden Aufgaben-App. Hier erscheinen sie, sobald die Verknüpfung steht." /> : null}
     </section>
   )

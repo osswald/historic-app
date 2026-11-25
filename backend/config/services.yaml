@@ -29,6 +29,7 @@ services:
     App\Domain\Poll\PollRepository: '@App\Infrastructure\Doctrine\DoctrinePollRepository'
     App\Domain\Ride\RideRepository: '@App\Infrastructure\Doctrine\DoctrineRideRepository'
     App\Domain\Fleet\VehicleRepository: '@App\Infrastructure\Doctrine\DoctrineVehicleRepository'
+    App\Domain\Gastronomy\GastroPlanRepository: '@App\Infrastructure\Doctrine\DoctrineGastroPlanRepository'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
