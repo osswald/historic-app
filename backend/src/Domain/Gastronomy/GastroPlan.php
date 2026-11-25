@@ -27,6 +27,9 @@ class GastroPlan
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $notes;
 
+    #[ORM\Column(nullable: true)]
+    private ?int $guestCount = null;
+
     #[ORM\Column(type: Types::DATETIMETZ_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -69,6 +72,11 @@ class GastroPlan
         return $this->notes;
     }
 
+    public function guestCount(): ?int
+    {
+        return $this->guestCount;
+    }
+
     /** @return list<GastroDish> */
     public function dishes(): array
     {
@@ -85,9 +93,10 @@ class GastroPlan
      * @param list<array{name: string, portions: int}> $dishes
      * @param list<array{sub: string, name: string}> $responsible
      */
-    public function replace(?string $notes, array $dishes, array $responsible, \DateTimeImmutable $now): void
+    public function replace(?string $notes, ?int $guestCount, array $dishes, array $responsible, \DateTimeImmutable $now): void
     {
         $this->notes = $notes;
+        $this->guestCount = $guestCount;
         $this->updatedAt = $now;
         foreach ($this->dishes->toArray() as $dish) {
             $this->dishes->removeElement($dish);
@@ -109,6 +118,7 @@ class GastroPlan
         return [
             'eventId' => $this->event->id(),
             'notes' => $this->notes,
+            'guestCount' => $this->guestCount,
             'dishes' => array_map(static fn (GastroDish $dish): array => $dish->toAudit(), $this->dishes()),
             'responsible' => array_map(static fn (GastroResponsible $person): array => $person->toAudit(), $this->responsible()),
         ];

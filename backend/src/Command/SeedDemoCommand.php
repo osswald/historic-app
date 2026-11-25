@@ -9,6 +9,7 @@ use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventRepository;
 use App\Domain\Event\EventStatus;
+use App\Domain\Event\Place;
 use App\Domain\Fleet\Vehicle;
 use App\Domain\Fleet\VehicleRepository;
 use App\Domain\Fleet\VehicleStatus;
@@ -17,7 +18,6 @@ use App\Domain\Poll\Poll;
 use App\Domain\Poll\PollKind;
 use App\Domain\Poll\PollRepository;
 use App\Domain\Poll\PollStatus;
-use App\Domain\Ride\AssignmentKind;
 use App\Domain\Ride\DayOffset;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideRepository;
@@ -36,6 +36,9 @@ final class SeedDemoCommand extends Command
     private const BDE = '6f1a9b10-5555-4555-8555-555555555552';
     private const SPEISE = '6f1a9b10-5555-4555-8555-555555555553';
     private const DEPOT_POLL = '6f1a9b10-4444-4444-8444-444444444441';
+
+    /** @var array<string, Place> */
+    private array $places = [];
 
     public function __construct(
         private EventRepository $events,
@@ -195,7 +198,7 @@ final class SeedDemoCommand extends Command
     private function seedVehicles(\DateTimeImmutable $now): void
     {
         $this->vehicles->add(new Vehicle('Be 4/6', null, VehicleStatus::Ready, null, true, 0, $now, self::BE46));
-        $this->vehicles->add(new Vehicle('BDe 4/4', '1643', VehicleStatus::Limited, null, true, 1, $now, self::BDE));
+        $this->vehicles->add(new Vehicle('BDe 4/4', '1643', VehicleStatus::Limited, 'Eingeschränkt bis zur nächsten Kontrolle.', true, 1, $now, self::BDE));
         $this->vehicles->add(new Vehicle('Speisewagen Dr', null, VehicleStatus::Ready, null, false, 2, $now, self::SPEISE));
     }
 
@@ -230,17 +233,19 @@ final class SeedDemoCommand extends Command
             'Beispiel',
             '8506000',
             'Winterthur',
+            'W',
             '8503130',
             'Hinwil',
+            'HI',
             null,
             0,
             self::OBERLAND_RIDE,
         );
-        $ride->replaceAssignments([[
-            'kind' => AssignmentKind::Own,
+        $event->replaceAssignedVehicles([[
             'vehicle' => $vehicle,
-            'externalName' => null,
+            'rentalStatus' => null,
         ]]);
+        $ride->replaceAssignments([$vehicle]);
 
         return $ride;
     }
@@ -331,18 +336,38 @@ final class SeedDemoCommand extends Command
             $now,
             $id,
         );
-        $event->addDay(
+        $day = $event->addDay(
             $this->date($date),
             $this->time($start),
             $this->time($end),
             $dayLocation,
-            $meetingName,
-            $meetingDescription,
             0,
             $dayId,
         );
+        if ($meetingName !== '') {
+            $day->replaceMeetingPoints([[
+                'place' => $this->place($meetingName),
+                'meetsAt' => $this->time($start),
+                'description' => $meetingDescription,
+            ]]);
+        }
+        if ($dayLocation !== '') {
+            $this->place($dayLocation);
+        }
 
         return $event;
+    }
+
+    private function place(string $name): Place
+    {
+        if (isset($this->places[$name])) {
+            return $this->places[$name];
+        }
+        $place = new Place($name);
+        $this->entityManager->persist($place);
+        $this->places[$name] = $place;
+
+        return $place;
     }
 
     private function date(string $value): \DateTimeImmutable

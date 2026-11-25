@@ -11,7 +11,6 @@ use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
 use App\Domain\Fleet\Vehicle;
 use App\Domain\Fleet\VehicleRepository;
-use App\Domain\Ride\AssignmentKind;
 use App\Domain\Ride\DayOffset;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideRepository;
@@ -42,7 +41,7 @@ final class SaveRides
     public function replace(MemberUser $actor, string $eventId, array $payload): array
     {
         if (!$actor->canPlanRides()) {
-            throw new AccessDeniedException('Fahrten bearbeiten dürfen Organisatoren und die Fahrtenplanung.');
+            throw new AccessDeniedException('Fahrten bearbeiten dürfen Administratoren und die Fahrtenplanung.');
         }
 
         $event = $this->events->visible($eventId, $actor);
@@ -50,7 +49,15 @@ final class SaveRides
         foreach ($this->vehicles->all() as $vehicle) {
             $fleet[$vehicle->id()] = $vehicle;
         }
+        if (array_key_exists('eventVehicles', $payload)) {
+            $event->replaceAssignedVehicles($this->eventVehicles($payload['eventVehicles'], $fleet));
+        }
         $input = $this->normalize($event, $payload, $fleet);
+        if (array_key_exists('eventVehicles', $payload)) {
+            $this->assertSubset($event, $input);
+        } else {
+            $this->includeRideVehicles($event, $input);
+        }
         $existing = [];
         foreach ($this->rides->forEvent($event->id()) as $ride) {
             $existing[$ride->id()] = $ride;
@@ -75,8 +82,10 @@ final class SaveRides
                     $row['trainNumber'],
                     $row['originDidokCode'],
                     $row['originName'],
+                    $row['originAbbreviation'],
                     $row['destinationDidokCode'],
                     $row['destinationName'],
+                    $row['destinationAbbreviation'],
                     $row['internalNote'],
                     $row['sortOrder'],
                 );
@@ -97,8 +106,10 @@ final class SaveRides
                 $row['trainNumber'],
                 $row['originDidokCode'],
                 $row['originName'],
+                $row['originAbbreviation'],
                 $row['destinationDidokCode'],
                 $row['destinationName'],
+                $row['destinationAbbreviation'],
                 $row['internalNote'],
                 $row['sortOrder'],
             );
@@ -134,7 +145,7 @@ final class SaveRides
 
         $this->entityManager->flush();
 
-        return $this->presenter->present($saved, $actor, $warnings, array_values($fleet));
+        return $this->presenter->present($event, $saved, $actor, $warnings, array_values($fleet));
     }
 
     /**
@@ -150,9 +161,11 @@ final class SaveRides
      *     trainNumber: string,
      *     originDidokCode: string,
      *     originName: string,
+     *     originAbbreviation: ?string,
      *     destinationDidokCode: string,
      *     destinationName: string,
-     *     vehicles: list<array{kind: AssignmentKind, vehicle: ?Vehicle, externalName: ?string}>,
+     *     destinationAbbreviation: ?string,
+     *     vehicles: list<Vehicle>,
      *     internalNote: ?string,
      *     sortOrder: int
      * }>
@@ -262,8 +275,10 @@ final class SaveRides
                 'trainNumber' => $trainNumber,
                 'originDidokCode' => $origin['didokCode'],
                 'originName' => $origin['name'],
+                'originAbbreviation' => $origin['abbreviation'],
                 'destinationDidokCode' => $destination['didokCode'],
                 'destinationName' => $destination['name'],
+                'destinationAbbreviation' => $destination['abbreviation'],
                 'vehicles' => $vehicles,
                 'internalNote' => $internalNote !== '' ? $internalNote : null,
                 'sortOrder' => count($rows),
@@ -279,7 +294,7 @@ final class SaveRides
 
     /**
      * @param array<string, string> $errors
-     * @return array{didokCode: string, name: string}|null
+     * @return array{didokCode: string, name: string, abbreviation: ?string}|null
      */
     private function station(mixed $value, string $prefix, string $label, array &$errors): ?array
     {
@@ -290,6 +305,7 @@ final class SaveRides
         }
         $code = trim((string) ($value['didokCode'] ?? ''));
         $name = trim((string) ($value['name'] ?? ''));
+        $abbreviation = trim((string) ($value['abbreviation'] ?? ''));
         $valid = true;
         if (preg_match('/^\d{1,12}$/', $code) !== 1) {
             $errors[$prefix.'.didokCode'] = 'Bitte den DiDok-Code des '.$label.'s aus der Suche übernehmen.';
@@ -302,17 +318,21 @@ final class SaveRides
             $errors[$prefix.'.name'] = 'Bitte höchstens 120 Zeichen für den '.$label.' angeben.';
             $valid = false;
         }
+        if (mb_strlen($abbreviation) > 20) {
+            $errors[$prefix.'.abbreviation'] = 'Bitte höchstens 20 Zeichen für das Kürzel angeben.';
+            $valid = false;
+        }
         if (!$valid) {
             return null;
         }
 
-        return ['didokCode' => $code, 'name' => $name];
+        return ['didokCode' => $code, 'name' => $name, 'abbreviation' => $abbreviation !== '' ? $abbreviation : null];
     }
 
     /**
      * @param array<string, Vehicle> $fleet
      * @param array<string, string> $errors
-     * @return list<array{kind: AssignmentKind, vehicle: ?Vehicle, externalName: ?string}>|null
+     * @return list<Vehicle>|null
      */
     private function vehiclesFor(mixed $value, int|string $index, array $fleet, array &$errors): ?array
     {
@@ -331,39 +351,106 @@ final class SaveRides
                 $valid = false;
                 continue;
             }
-            $kind = AssignmentKind::tryFrom(trim((string) ($vehicle['kind'] ?? '')));
-            if (!$kind instanceof AssignmentKind) {
-                $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.kind'] = 'Bitte Vereinsfahrzeug oder extern wählen.';
+            $vehicleId = trim((string) ($vehicle['vehicleId'] ?? ''));
+            $fleetVehicle = $fleet[$vehicleId] ?? null;
+            if (!$fleetVehicle instanceof Vehicle) {
+                $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.vehicleId'] = 'Bitte ein Fahrzeug aus dem Fahrzeugstamm wählen.';
                 $valid = false;
                 continue;
             }
-            if ($kind === AssignmentKind::Own) {
-                $vehicleId = trim((string) ($vehicle['vehicleId'] ?? ''));
-                $fleetVehicle = $fleet[$vehicleId] ?? null;
-                if (!$fleetVehicle instanceof Vehicle) {
-                    $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.vehicleId'] = 'Bitte ein Vereinsfahrzeug aus dem Fahrzeugstamm wählen.';
-                    $valid = false;
-                    continue;
-                }
-                if (isset($seen[$vehicleId])) {
-                    $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.vehicleId'] = 'Dieses Vereinsfahrzeug ist in der Fahrt bereits enthalten.';
-                    $valid = false;
-                    continue;
-                }
-                $seen[$vehicleId] = true;
-                $rows[] = ['kind' => AssignmentKind::Own, 'vehicle' => $fleetVehicle, 'externalName' => null];
-                continue;
-            }
-            $name = trim((string) ($vehicle['externalName'] ?? ''));
-            if ($name === '' || mb_strlen($name) > 120) {
-                $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.externalName'] = 'Bitte den Namen des externen Fahrzeugs mit höchstens 120 Zeichen angeben.';
+            if (isset($seen[$vehicleId])) {
+                $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.vehicleId'] = 'Dieses Fahrzeug ist in der Fahrt bereits enthalten.';
                 $valid = false;
                 continue;
             }
-            $rows[] = ['kind' => AssignmentKind::External, 'vehicle' => null, 'externalName' => $name];
+            $seen[$vehicleId] = true;
+            $rows[] = $fleetVehicle;
         }
 
         return $valid ? $rows : null;
+    }
+
+    /**
+     * @param array<string, Vehicle> $fleet
+     * @return list<array{vehicle: Vehicle, rentalStatus: ?string}>
+     */
+    private function eventVehicles(mixed $value, array $fleet): array
+    {
+        if (!is_array($value)) {
+            throw new InvalidRequest(['eventVehicles' => 'Bitte die Fahrzeugliste des Anlasses als Liste angeben.']);
+        }
+        $errors = [];
+        $rows = [];
+        $seen = [];
+        foreach ($value as $index => $row) {
+            if (!is_array($row)) {
+                $errors['eventVehicles.'.$index] = 'Das Fahrzeug ist ungültig.';
+                continue;
+            }
+            $id = trim((string) ($row['vehicleId'] ?? ''));
+            $vehicle = $fleet[$id] ?? null;
+            if (!$vehicle instanceof Vehicle) {
+                $errors['eventVehicles.'.$index.'.vehicleId'] = 'Bitte ein Fahrzeug aus dem Fahrzeugstamm wählen.';
+                continue;
+            }
+            if (isset($seen[$id])) {
+                $errors['eventVehicles.'.$index.'.vehicleId'] = 'Dieses Fahrzeug ist in der Liste bereits enthalten.';
+                continue;
+            }
+            $seen[$id] = true;
+            $rental = trim((string) ($row['rentalStatus'] ?? ''));
+            if (mb_strlen($rental) > 80) {
+                $errors['eventVehicles.'.$index.'.rentalStatus'] = 'Bitte höchstens 80 Zeichen für den Mietstatus angeben.';
+                continue;
+            }
+            $rows[] = ['vehicle' => $vehicle, 'rentalStatus' => $rental !== '' ? $rental : null];
+        }
+        if ($errors !== []) {
+            throw new InvalidRequest($errors);
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param list<array{vehicles: list<Vehicle>}> $rows
+     */
+    private function assertSubset(Event $event, array $rows): void
+    {
+        $errors = [];
+        foreach ($rows as $index => $row) {
+            foreach ($row['vehicles'] as $vehicleIndex => $vehicle) {
+                if (!$event->allowsVehicle($vehicle->id())) {
+                    $errors['rides.'.$index.'.vehicles.'.$vehicleIndex.'.vehicleId'] = 'Bitte das Fahrzeug zuerst in die Fahrzeugliste des Anlasses aufnehmen.';
+                }
+            }
+        }
+        if ($errors !== []) {
+            throw new InvalidRequest($errors);
+        }
+    }
+
+    /**
+     * @param list<array{vehicles: list<Vehicle>}> $rows
+     */
+    private function includeRideVehicles(Event $event, array $rows): void
+    {
+        $current = [];
+        $known = [];
+        foreach ($event->assignedVehicles() as $link) {
+            $current[] = ['vehicle' => $link->vehicle(), 'rentalStatus' => $link->rentalStatus()];
+            $known[$link->vehicle()->id()] = true;
+        }
+        foreach ($rows as $row) {
+            foreach ($row['vehicles'] as $vehicle) {
+                if (isset($known[$vehicle->id()])) {
+                    continue;
+                }
+                $current[] = ['vehicle' => $vehicle, 'rentalStatus' => null];
+                $known[$vehicle->id()] = true;
+            }
+        }
+        $event->replaceAssignedVehicles($current);
     }
 
     private function offset(mixed $value): ?DayOffset

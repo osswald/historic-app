@@ -94,12 +94,17 @@ final class PollPresenter
         $vote = $option->currentVote($sub);
         $saved = $poll->answerFor($sub) !== null;
         $yes = [];
-        $no = 0;
+        $no = [];
         foreach ($option->currentVotes() as $current) {
+            $person = $poll->answerFor($current->auth0Sub());
+            $row = [
+                'name' => $person?->respondentName() ?? 'Mitglied',
+                'comment' => $person?->comment(),
+            ];
             if ($current->answer()->value === 'yes') {
-                $yes[] = $poll->answerFor($current->auth0Sub())?->respondentName() ?? 'Mitglied';
+                $yes[] = $row;
             } else {
-                ++$no;
+                $no[] = $row;
             }
         }
 
@@ -113,9 +118,13 @@ final class PollPresenter
             'endsAt' => $option->endsAt()?->format('H:i'),
             'answer' => $vote?->answer()->value,
             'needsSupplement' => $saved && !$vote instanceof PollVote,
+            'adoptedEventId' => $option->adoptedEventId(),
             'yesCount' => count($yes),
-            'noCount' => $no,
-            'yesNames' => $yes,
+            'noCount' => count($no),
+            'yesNames' => array_map(static fn (array $row): string => $row['name'], $yes),
+            'noNames' => array_map(static fn (array $row): string => $row['name'], $no),
+            'yesAnswers' => $yes,
+            'noAnswers' => $no,
         ];
     }
 

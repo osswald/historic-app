@@ -25,35 +25,22 @@ class RideVehicle
     private AssignmentKind $kind;
 
     #[ORM\ManyToOne]
-    #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
-    private ?Vehicle $vehicle;
-
-    #[ORM\Column(length: 120, nullable: true)]
-    private ?string $externalName;
+    #[ORM\JoinColumn(nullable: false, onDelete: 'RESTRICT')]
+    private Vehicle $vehicle;
 
     #[ORM\Column]
     private int $sortOrder;
 
     public function __construct(
         Ride $ride,
-        AssignmentKind $kind,
-        ?Vehicle $vehicle,
-        ?string $externalName,
+        Vehicle $vehicle,
         int $sortOrder,
         ?string $id = null,
     ) {
-        if ($kind === AssignmentKind::Own && !$vehicle instanceof Vehicle) {
-            throw new \InvalidArgumentException('Ein Vereinsfahrzeug braucht einen Stammdatensatz.');
-        }
-        if ($kind === AssignmentKind::External && ($externalName === null || $externalName === '' || $vehicle instanceof Vehicle)) {
-            throw new \InvalidArgumentException('Ein externes Fahrzeug braucht einen Namen.');
-        }
-
         $this->id = $id ?? Uuid::v7()->toRfc4122();
         $this->ride = $ride;
-        $this->kind = $kind;
-        $this->vehicle = $kind === AssignmentKind::Own ? $vehicle : null;
-        $this->externalName = $kind === AssignmentKind::External ? $externalName : null;
+        $this->kind = $vehicle->isExternal() ? AssignmentKind::External : AssignmentKind::Own;
+        $this->vehicle = $vehicle;
         $this->sortOrder = $sortOrder;
     }
 
@@ -67,28 +54,19 @@ class RideVehicle
         return $this->kind;
     }
 
-    public function vehicle(): ?Vehicle
+    public function vehicle(): Vehicle
     {
         return $this->vehicle;
     }
 
-    public function externalName(): ?string
-    {
-        return $this->externalName;
-    }
-
     public function isOwn(): bool
     {
-        return $this->kind === AssignmentKind::Own && $this->vehicle instanceof Vehicle;
+        return !$this->vehicle->isExternal();
     }
 
     public function label(): string
     {
-        if ($this->vehicle instanceof Vehicle) {
-            return $this->vehicle->label();
-        }
-
-        return (string) $this->externalName;
+        return $this->vehicle->label();
     }
 
     /** @return array<string, mixed> */

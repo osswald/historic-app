@@ -8,7 +8,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { EventDetailPage } from './pages/EventDetailPage'
 import { EventEditorPage } from './pages/EventEditorPage'
 import { EventsPage } from './pages/EventsPage'
-import { LaterPage } from './pages/LaterPage'
+import { GastroPage } from './pages/GastroPage'
 import { VehiclesPage } from './pages/VehiclesPage'
 import { LoginPage } from './pages/LoginPage'
 import { PollDetailPage } from './pages/PollDetailPage'
@@ -63,7 +63,7 @@ export default function App() {
               <Route element={<PollDetailPage />} path="/umfragen/:id" />
               <Route element={<PollEditorPage />} path="/umfragen/:id/bearbeiten" />
               <Route element={<VehiclesPage />} path="/fahrzeuge" />
-              <Route element={<LaterPage eyebrow="Supporterclub" text="Pro Veranstaltung gibt es später eine Gastronomieplanung. Getränke kommen aus dem CashCtrl-Mandanten des Supporterclubs." title="Gastronomieplanung" />} path="/gastronomie" />
+              <Route element={<GastroPage />} path="/gastronomie" />
             </Routes>
           </Shell>
           <div aria-live="polite" className={toast ? 'toast show' : 'toast'} role="status">{toast}</div>

@@ -55,6 +55,11 @@ class Event
     #[ORM\OrderBy(['sortOrder' => 'ASC', 'occursOn' => 'ASC'])]
     private Collection $days;
 
+    /** @var Collection<int, EventVehicle> */
+    #[ORM\OneToMany(mappedBy: 'event', targetEntity: EventVehicle::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    private Collection $assignedVehicles;
+
     /**
      * @param list<string> $clubs
      * @param list<string> $categories
@@ -83,6 +88,7 @@ class Event
         $this->createdAt = $now;
         $this->updatedAt = $now;
         $this->days = new ArrayCollection();
+        $this->assignedVehicles = new ArrayCollection();
     }
 
     public function id(): string
@@ -221,8 +227,6 @@ class Event
         ?\DateTimeImmutable $startsAt,
         ?\DateTimeImmutable $endsAt,
         ?string $location,
-        ?string $meetingPointName,
-        ?string $meetingPointDescription,
         int $sortOrder,
         ?string $id = null,
     ): EventDay {
@@ -232,14 +236,64 @@ class Event
             $startsAt,
             $endsAt,
             $location,
-            $meetingPointName,
-            $meetingPointDescription,
             $sortOrder,
             $id,
         );
         $this->days->add($day);
 
         return $day;
+    }
+
+    /** @return list<EventVehicle> */
+    public function assignedVehicles(): array
+    {
+        $links = $this->assignedVehicles->toArray();
+        usort($links, static fn (EventVehicle $left, EventVehicle $right): int => $left->sortOrder() <=> $right->sortOrder());
+
+        return array_values($links);
+    }
+
+    public function allowsVehicle(string $vehicleId): bool
+    {
+        foreach ($this->assignedVehicles as $link) {
+            if ($link->vehicle()->id() === $vehicleId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<array{vehicle: \App\Domain\Fleet\Vehicle, rentalStatus: ?string}> $assignments
+     */
+    public function replaceAssignedVehicles(array $assignments): void
+    {
+        $wanted = [];
+        foreach ($assignments as $index => $assignment) {
+            $wanted[$assignment['vehicle']->id()] = [
+                'vehicle' => $assignment['vehicle'],
+                'rentalStatus' => $assignment['rentalStatus'],
+                'sortOrder' => $index,
+            ];
+        }
+        foreach ($this->assignedVehicles->toArray() as $link) {
+            $id = $link->vehicle()->id();
+            if (!isset($wanted[$id])) {
+                $this->assignedVehicles->removeElement($link);
+                continue;
+            }
+            $link->revise($wanted[$id]['rentalStatus'], $wanted[$id]['sortOrder']);
+            unset($wanted[$id]);
+        }
+        foreach ($wanted as $assignment) {
+            $this->assignedVehicles->add(new EventVehicle(
+                $this,
+                $assignment['vehicle'],
+                $assignment['rentalStatus'],
+                $assignment['sortOrder'],
+            ));
+        }
     }
 
     /** @param list<string> $idsToKeep */
@@ -270,9 +324,16 @@ class Event
                 'startsAt' => $day->startsAt()?->format('H:i'),
                 'endsAt' => $day->endsAt()?->format('H:i'),
                 'location' => $day->location(),
-                'meetingPointName' => $day->meetingPointName(),
-                'meetingPointDescription' => $day->meetingPointDescription(),
+                'meetingPoints' => array_map(static fn (MeetingPoint $point): array => [
+                    'place' => $point->place()->name(),
+                    'meetsAt' => $point->meetsAt()?->format('H:i'),
+                    'description' => $point->description(),
+                ], $day->meetingPoints()),
             ], $this->days()),
+            'vehicles' => array_map(static fn (EventVehicle $link): array => [
+                'vehicleId' => $link->vehicle()->id(),
+                'rentalStatus' => $link->rentalStatus(),
+            ], $this->assignedVehicles()),
         ];
     }
 }

@@ -10,11 +10,14 @@ interface RideRepository
 
     public function remove(Ride $ride): void;
 
+    public function get(string $id): ?Ride;
+
     /** @return list<Ride> */
     public function forEvent(string $eventId): array;
 
     /**
-     * Fahrten anderer Veranstaltungen mit mindestens einem Vereinsfahrzeug, Entwürfe eingeschlossen.
+     * Fahrten anderer Veranstaltungen mit mindestens einem Vereinsfahrzeug.
+     * Entwürfe sind eingeschlossen, abgesagte Anlässe nicht.
      *
      * @return list<Ride>
      */

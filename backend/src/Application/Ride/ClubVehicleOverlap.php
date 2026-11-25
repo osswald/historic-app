@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Ride;
 
+use App\Domain\Event\EventStatus;
 use App\Domain\Fleet\Vehicle;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideWindow;
@@ -18,6 +19,10 @@ final class ClubVehicleOverlap
      */
     public function warnings(array $rides, array $elsewhere): array
     {
+        $subject = $rides[0] ?? null;
+        if ($subject instanceof Ride && $subject->event()->status() === EventStatus::Cancelled) {
+            return [];
+        }
         $local = $this->pairs($this->unique($rides));
         $other = $this->pairs($this->unique($elsewhere));
         $messages = [];
@@ -36,9 +41,10 @@ final class ClubVehicleOverlap
                     continue;
                 }
                 $messages[] = sprintf(
-                    'Das Vereinsfahrzeug „%s“ überschneidet sich mit einer Fahrt der Veranstaltung „%s“.',
+                    'Das Vereinsfahrzeug „%s“ überschneidet sich mit einer Fahrt der Veranstaltung „%s“ (%s).',
                     $local[$index]['label'],
                     $candidate['eventTitle'],
+                    $candidate['statusLabel'],
                 );
             }
         }
@@ -62,22 +68,28 @@ final class ClubVehicleOverlap
 
     /**
      * @param list<Ride> $rides
-     * @return list<array{vehicleId: string, label: string, window: RideWindow, eventTitle: string}>
+     * @return list<array{vehicleId: string, label: string, window: RideWindow, eventTitle: string, statusLabel: string}>
      */
     private function pairs(array $rides): array
     {
         $pairs = [];
+        $windows = [];
         foreach ($rides as $ride) {
+            $eventId = $ride->event()->id();
+            if (!isset($windows[$eventId])) {
+                $windows[$eventId] = RideWindow::forEvent($ride->event());
+            }
             foreach ($ride->ownAssignments() as $assignment) {
                 $vehicle = $assignment->vehicle();
-                if (!$vehicle instanceof Vehicle) {
+                if (!$vehicle instanceof Vehicle || $vehicle->isExternal()) {
                     continue;
                 }
                 $pairs[] = [
                     'vehicleId' => $vehicle->id(),
                     'label' => $vehicle->label(),
-                    'window' => $ride->window(),
+                    'window' => $windows[$eventId],
                     'eventTitle' => $ride->event()->title(),
+                    'statusLabel' => $ride->event()->status()->label(),
                 ];
             }
         }
@@ -86,8 +98,8 @@ final class ClubVehicleOverlap
     }
 
     /**
-     * @param array{vehicleId: string, label: string, window: RideWindow, eventTitle: string} $left
-     * @param array{vehicleId: string, label: string, window: RideWindow, eventTitle: string} $right
+     * @param array{vehicleId: string, label: string, window: RideWindow, eventTitle: string, statusLabel: string} $left
+     * @param array{vehicleId: string, label: string, window: RideWindow, eventTitle: string, statusLabel: string} $right
      */
     private function conflicts(array $left, array $right): bool
     {

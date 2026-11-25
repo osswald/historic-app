@@ -22,10 +22,27 @@ final class DoctrineGastroPlanRepository extends ServiceEntityRepository impleme
         $this->getEntityManager()->persist($plan);
     }
 
+    public function get(string $id): ?GastroPlan
+    {
+        $plan = $this->find($id);
+
+        return $plan instanceof GastroPlan ? $plan : null;
+    }
+
     public function byEventId(string $eventId): ?GastroPlan
     {
         $plan = $this->findOneBy(['event' => $eventId]);
 
         return $plan instanceof GastroPlan ? $plan : null;
+    }
+
+    public function all(): array
+    {
+        /** @var list<GastroPlan> $plans */
+        $plans = $this->createQueryBuilder('plan')
+            ->getQuery()
+            ->getResult();
+
+        return $plans;
     }
 }

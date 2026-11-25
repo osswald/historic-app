@@ -7,6 +7,8 @@ namespace App\Application\Event;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventResponse;
+use App\Domain\Event\EventVehicle;
+use App\Domain\Event\MeetingPoint;
 use App\Security\MemberUser;
 
 final class EventPresenter
@@ -39,6 +41,16 @@ final class EventPresenter
             'publicDescription' => $event->publicDescription(),
             'location' => $event->location(),
             'publishToWebsite' => $event->publishToWebsite(),
+            'vehicles' => array_map(fn (EventVehicle $link): array => [
+                'vehicleId' => $link->vehicle()->id(),
+                'name' => $link->vehicle()->name(),
+                'number' => $link->vehicle()->number(),
+                'label' => $link->vehicle()->label(),
+                'external' => $link->vehicle()->isExternal(),
+                'status' => $link->vehicle()->status()->value,
+                'statusLabel' => $link->vehicle()->status()->label(),
+                'rentalStatus' => $link->rentalStatus(),
+            ], $event->assignedVehicles()),
             'eyebrow' => $event->categories()[0] ?? 'Veranstaltung',
             'card' => $headline instanceof EventDay ? $this->cardFromDay($event, $headline, $user, $today) : null,
             'days' => array_map(fn (EventDay $day): array => $this->day($day, $user, $today), $event->days()),
@@ -98,8 +110,13 @@ final class EventPresenter
             'startsAt' => $day->startsAt()?->format('H:i'),
             'endsAt' => $day->endsAt()?->format('H:i'),
             'location' => $day->location(),
-            'meetingPointName' => $day->meetingPointName(),
-            'meetingPointDescription' => $day->meetingPointDescription(),
+            'meetingPoints' => array_map(static fn (MeetingPoint $point): array => [
+                'id' => $point->id(),
+                'placeId' => $point->place()->id(),
+                'placeName' => $point->place()->name(),
+                'meetsAt' => $point->meetsAt()?->format('H:i'),
+                'description' => $point->description(),
+            ], $day->meetingPoints()),
             'line1' => $this->line1($day, $today),
             'myResponse' => $mine?->answer()->value,
             'myComment' => $mine?->comment(),

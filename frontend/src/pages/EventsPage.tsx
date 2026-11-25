@@ -21,7 +21,20 @@ export function EventsPage() {
     const needle = query.trim().toLowerCase()
     return (events ?? []).filter((event) => {
       if (needle === '') return true
-      const haystack = [event.title, event.location ?? '', event.categories.join(' '), event.clubLabels.join(' ')].join(' ').toLowerCase()
+      const haystack = [
+        event.title,
+        event.publicDescription ?? '',
+        event.internalDescription ?? '',
+        event.location ?? '',
+        event.categories.join(' '),
+        event.clubLabels.join(' '),
+        event.days.map((day) => [
+          day.date,
+          day.line1,
+          day.location ?? '',
+          day.meetingPoints.map((point) => `${point.placeName} ${point.description ?? ''}`).join(' '),
+        ].join(' ')).join(' '),
+      ].join(' ').toLowerCase()
       return haystack.includes(needle)
     })
   }, [events, query])

@@ -36,6 +36,27 @@ class Vehicle
     #[ORM\Column]
     private int $sortOrder;
 
+    #[ORM\Column]
+    private bool $external;
+
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $owner;
+
+    #[ORM\Column(length: 80, nullable: true)]
+    private ?string $nvr;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $p1On;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $p5On;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $oilOn;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $nextMaintenanceOn;
+
     #[ORM\Column(type: Types::DATETIMETZ_IMMUTABLE)]
     private \DateTimeImmutable $createdAt;
 
@@ -61,6 +82,13 @@ class Vehicle
         int $sortOrder,
         \DateTimeImmutable $now,
         ?string $id = null,
+        bool $external = false,
+        ?string $owner = null,
+        ?string $nvr = null,
+        ?\DateTimeImmutable $p1On = null,
+        ?\DateTimeImmutable $p5On = null,
+        ?\DateTimeImmutable $oilOn = null,
+        ?\DateTimeImmutable $nextMaintenanceOn = null,
     ) {
         $this->id = $id ?? Uuid::v7()->toRfc4122();
         $this->name = $name;
@@ -69,6 +97,13 @@ class Vehicle
         $this->technicalNote = $technicalNote;
         $this->tracksMotorHours = $tracksMotorHours;
         $this->sortOrder = $sortOrder;
+        $this->external = $external;
+        $this->owner = $owner;
+        $this->nvr = $nvr;
+        $this->p1On = $p1On;
+        $this->p5On = $p5On;
+        $this->oilOn = $oilOn;
+        $this->nextMaintenanceOn = $nextMaintenanceOn;
         $this->createdAt = $now;
         $this->updatedAt = $now;
         $this->batteryCharges = new ArrayCollection();
@@ -112,12 +147,54 @@ class Vehicle
         return $this->tracksMotorHours;
     }
 
+    public function isExternal(): bool
+    {
+        return $this->external;
+    }
+
+    public function owner(): ?string
+    {
+        return $this->owner;
+    }
+
+    public function nvr(): ?string
+    {
+        return $this->nvr;
+    }
+
+    public function p1On(): ?\DateTimeImmutable
+    {
+        return $this->p1On;
+    }
+
+    public function p5On(): ?\DateTimeImmutable
+    {
+        return $this->p5On;
+    }
+
+    public function oilOn(): ?\DateTimeImmutable
+    {
+        return $this->oilOn;
+    }
+
+    public function nextMaintenanceOn(): ?\DateTimeImmutable
+    {
+        return $this->nextMaintenanceOn;
+    }
+
     public function change(
         string $name,
         ?string $number,
         VehicleStatus $status,
         ?string $technicalNote,
         bool $tracksMotorHours,
+        bool $external,
+        ?string $owner,
+        ?string $nvr,
+        ?\DateTimeImmutable $p1On,
+        ?\DateTimeImmutable $p5On,
+        ?\DateTimeImmutable $oilOn,
+        ?\DateTimeImmutable $nextMaintenanceOn,
         \DateTimeImmutable $now,
     ): void {
         $this->name = $name;
@@ -125,6 +202,13 @@ class Vehicle
         $this->status = $status;
         $this->technicalNote = $technicalNote;
         $this->tracksMotorHours = $tracksMotorHours;
+        $this->external = $external;
+        $this->owner = $owner;
+        $this->nvr = $nvr;
+        $this->p1On = $p1On;
+        $this->p5On = $p5On;
+        $this->oilOn = $oilOn;
+        $this->nextMaintenanceOn = $nextMaintenanceOn;
         $this->updatedAt = $now;
     }
 
@@ -171,6 +255,13 @@ class Vehicle
             'status' => $this->status->value,
             'technicalNote' => $this->technicalNote,
             'tracksMotorHours' => $this->tracksMotorHours,
+            'external' => $this->external,
+            'owner' => $this->owner,
+            'nvr' => $this->nvr,
+            'p1On' => $this->p1On?->format('Y-m-d'),
+            'p5On' => $this->p5On?->format('Y-m-d'),
+            'oilOn' => $this->oilOn?->format('Y-m-d'),
+            'nextMaintenanceOn' => $this->nextMaintenanceOn?->format('Y-m-d'),
         ];
     }
 }

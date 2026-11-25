@@ -50,11 +50,17 @@ class Ride
     #[ORM\Column(length: 120)]
     private string $originName;
 
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $originAbbreviation;
+
     #[ORM\Column(length: 12)]
     private string $destinationDidokCode;
 
     #[ORM\Column(length: 120)]
     private string $destinationName;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $destinationAbbreviation;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $internalNote;
@@ -77,8 +83,10 @@ class Ride
         string $trainNumber,
         string $originDidokCode,
         string $originName,
+        ?string $originAbbreviation,
         string $destinationDidokCode,
         string $destinationName,
+        ?string $destinationAbbreviation,
         ?string $internalNote,
         int $sortOrder,
         ?string $id = null,
@@ -94,8 +102,10 @@ class Ride
         $this->trainNumber = $trainNumber;
         $this->originDidokCode = $originDidokCode;
         $this->originName = $originName;
+        $this->originAbbreviation = $originAbbreviation;
         $this->destinationDidokCode = $destinationDidokCode;
         $this->destinationName = $destinationName;
+        $this->destinationAbbreviation = $destinationAbbreviation;
         $this->internalNote = $internalNote;
         $this->sortOrder = $sortOrder;
         $this->vehicles = new ArrayCollection();
@@ -151,6 +161,11 @@ class Ride
         return $this->originName;
     }
 
+    public function originAbbreviation(): ?string
+    {
+        return $this->originAbbreviation;
+    }
+
     public function destinationDidokCode(): string
     {
         return $this->destinationDidokCode;
@@ -159,6 +174,11 @@ class Ride
     public function destinationName(): string
     {
         return $this->destinationName;
+    }
+
+    public function destinationAbbreviation(): ?string
+    {
+        return $this->destinationAbbreviation;
     }
 
     public function internalNote(): ?string
@@ -206,8 +226,10 @@ class Ride
         string $trainNumber,
         string $originDidokCode,
         string $originName,
+        ?string $originAbbreviation,
         string $destinationDidokCode,
         string $destinationName,
+        ?string $destinationAbbreviation,
         ?string $internalNote,
         int $sortOrder,
     ): void {
@@ -220,28 +242,24 @@ class Ride
         $this->trainNumber = $trainNumber;
         $this->originDidokCode = $originDidokCode;
         $this->originName = $originName;
+        $this->originAbbreviation = $originAbbreviation;
         $this->destinationDidokCode = $destinationDidokCode;
         $this->destinationName = $destinationName;
+        $this->destinationAbbreviation = $destinationAbbreviation;
         $this->internalNote = $internalNote;
         $this->sortOrder = $sortOrder;
     }
 
     /**
-     * @param list<array{kind: AssignmentKind, vehicle: ?Vehicle, externalName: ?string}> $assignments
+     * @param list<Vehicle> $vehicles
      */
-    public function replaceAssignments(array $assignments): void
+    public function replaceAssignments(array $vehicles): void
     {
         foreach ($this->vehicles->toArray() as $current) {
             $this->vehicles->removeElement($current);
         }
-        foreach ($assignments as $index => $assignment) {
-            $this->vehicles->add(new RideVehicle(
-                $this,
-                $assignment['kind'],
-                $assignment['vehicle'],
-                $assignment['externalName'],
-                $index,
-            ));
+        foreach ($vehicles as $index => $vehicle) {
+            $this->vehicles->add(new RideVehicle($this, $vehicle, $index));
         }
     }
 
@@ -258,8 +276,10 @@ class Ride
             'trainNumber' => $this->trainNumber,
             'originDidokCode' => $this->originDidokCode,
             'originName' => $this->originName,
+            'originAbbreviation' => $this->originAbbreviation,
             'destinationDidokCode' => $this->destinationDidokCode,
             'destinationName' => $this->destinationName,
+            'destinationAbbreviation' => $this->destinationAbbreviation,
             'vehicles' => array_map(static fn (RideVehicle $assignment): array => $assignment->toAudit(), $this->assignments()),
             'internalNote' => $this->internalNote,
         ];

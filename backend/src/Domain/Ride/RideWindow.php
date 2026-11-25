@@ -56,6 +56,21 @@ final class RideWindow
         return new self($start, $end);
     }
 
+    public static function forEvent(\App\Domain\Event\Event $event): self
+    {
+        $days = $event->days();
+        if ($days === []) {
+            throw new \LogicException('Die Veranstaltung hat keinen Zeitraum.');
+        }
+        $start = self::dayStart($days[0]);
+        $end = self::dayStart($days[array_key_last($days)])->modify('+1 day');
+        if (!$end instanceof \DateTimeImmutable) {
+            throw new \LogicException('Der Veranstaltungszeitraum hat kein Ende.');
+        }
+
+        return new self($start, $end);
+    }
+
     public function isOrdered(): bool
     {
         return $this->arrivesAt > $this->departsAt;

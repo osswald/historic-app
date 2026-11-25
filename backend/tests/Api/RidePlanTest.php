@@ -45,7 +45,8 @@ final class RidePlanTest extends ApiTestCase
         $updated = $this->ride($dayId, $vehicleId, '09:10', 0, '17:30', 0, 'Nur für die Planung');
         $updated['id'] = $rideId;
         $updated['trainNumber'] = '30432';
-        $updated['vehicles'][] = ['kind' => 'external', 'externalName' => 'Mietlok'];
+        $externalId = $this->createExternalVehicle($client, 'Mietlok');
+        $updated['vehicles'][] = ['vehicleId' => $externalId];
         $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$updated]]);
 
         self::assertResponseIsSuccessful();
@@ -156,7 +157,7 @@ final class RidePlanTest extends ApiTestCase
             ]);
             self::assertResponseStatusCodeSame(403);
             self::assertSame(
-                'Fahrten bearbeiten dürfen Organisatoren und die Fahrtenplanung.',
+                'Fahrten bearbeiten dürfen Administratoren und die Fahrtenplanung.',
                 $this->jsonBody($member)['error'],
             );
         });
@@ -193,8 +194,8 @@ final class RidePlanTest extends ApiTestCase
         $client = $this->browser();
         $created = $this->createEvent($client, 'Externe Lok');
         $dayId = $created['days'][0]['id'];
-        $external = $this->ride($dayId, 'unused', '09:00', 0, '12:00', 0);
-        $external['vehicles'] = [['kind' => 'external', 'externalName' => 'Mietlok']];
+        $externalId = $this->createExternalVehicle($client, 'Mietlok');
+        $external = $this->ride($dayId, $externalId, '09:00', 0, '12:00', 0);
         $second = $external;
         $second['departureTime'] = '11:00';
         $second['arrivalTime'] = '15:00';
@@ -296,66 +297,56 @@ final class RidePlanTest extends ApiTestCase
         self::assertSame('06:30', $this->jsonBody($client)['rides'][0]['arrivalTime']);
     }
 
-    public function testMissingTimesOccupyTheEventDayAndASingleTimeIsThatInstant(): void
+    public function testOverlapUsesTheWholeEventPeriodAndSkipsCancelled(): void
     {
         $client = $this->browser();
         $vehicleId = $this->createVehicle($client, 'Be 4/6');
-        $openEvent = $this->createEvent($client, 'Offene Fahrt');
-        $other = $this->createEvent($client, 'Andere Fahrt');
-        $openDay = $openEvent['days'][0]['id'];
-        $otherDay = $other['days'][0]['id'];
+        $draft = $this->createEvent($client, 'Entwurf am selben Tag', 'draft');
+        $published = $this->createEvent($client, 'Veröffentlichte Fahrt', 'published');
+        $later = $this->createEvent($client, 'Anderer Tag', 'published', '2026-12-20');
+        $cancelled = $this->createEvent($client, 'Abgesagte Fahrt', 'cancelled');
 
-        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
-            'rides' => [$this->ride($openDay, $vehicleId, null, null, null, null)],
+        $this->request($client, 'PUT', '/api/v1/events/'.$draft['id'].'/rides', [
+            'rides' => [$this->ride($draft['days'][0]['id'], $vehicleId, '08:00', 0, '09:00', 0)],
+        ]);
+        self::assertResponseIsSuccessful();
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$published['id'].'/rides', [
+            'rides' => [$this->ride($published['days'][0]['id'], $vehicleId, '18:00', 0, '19:00', 0)],
+        ]);
+        self::assertResponseIsSuccessful();
+        $warnings = $this->jsonBody($client)['warnings'];
+        self::assertTrue($this->warningsMention($warnings, 'Entwurf am selben Tag'));
+        self::assertTrue($this->warningsMention($warnings, '(Entwurf)'));
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$later['id'].'/rides', [
+            'rides' => [$this->ride($later['days'][0]['id'], $vehicleId, '09:00', 0, '12:00', 0)],
         ]);
         self::assertResponseIsSuccessful();
         self::assertSame([], $this->jsonBody($client)['warnings']);
 
-        $this->request($client, 'PUT', '/api/v1/events/'.$other['id'].'/rides', [
-            'rides' => [$this->ride($otherDay, $vehicleId, '18:00', -1, '20:00', -1)],
+        $this->request($client, 'PUT', '/api/v1/events/'.$cancelled['id'].'/rides', [
+            'rides' => [$this->ride($cancelled['days'][0]['id'], $vehicleId, '08:00', 0, '19:00', 0)],
         ]);
         self::assertResponseIsSuccessful();
         self::assertSame([], $this->jsonBody($client)['warnings']);
 
-        $this->request($client, 'PUT', '/api/v1/events/'.$other['id'].'/rides', [
-            'rides' => [$this->ride($otherDay, $vehicleId, '23:00', -1, '01:00', 0)],
+        $this->request($client, 'PUT', '/api/v1/events/'.$published['id'].'/rides', [
+            'rides' => [$this->ride($published['days'][0]['id'], $vehicleId, '18:00', 0, '19:00', 0)],
         ]);
         self::assertResponseIsSuccessful();
-        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'Offene Fahrt'));
+        self::assertFalse($this->warningsMention($this->jsonBody($client)['warnings'], 'Abgesagte Fahrt'));
+        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], '(Entwurf)'));
 
-        $this->request($client, 'PUT', '/api/v1/events/'.$other['id'].'/rides', [
-            'rides' => [$this->ride($otherDay, $vehicleId, '09:00', 0, '12:00', 0)],
-        ]);
-        self::assertResponseIsSuccessful();
-        self::assertCount(1, $this->jsonBody($client)['rides']);
-
-        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
+        $this->request($client, 'PUT', '/api/v1/events/'.$published['id'].'/rides', [
             'rides' => [
-                $this->ride($openDay, $vehicleId, null, null, null, null),
-                $this->ride($openDay, $vehicleId, null, null, null, null),
+                $this->ride($published['days'][0]['id'], $vehicleId, '09:00', 0, '10:00', 0),
+                $this->ride($published['days'][0]['id'], $vehicleId, '15:00', 0, '16:00', 0),
             ],
         ]);
         self::assertResponseIsSuccessful();
-        self::assertCount(2, $this->jsonBody($client)['rides']);
         self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'doppelt eingeteilt'));
-
-        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
-            'rides' => [$this->ride($openDay, $vehicleId, '11:00', 0, null, null)],
-        ]);
-        self::assertResponseIsSuccessful();
-        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'Andere Fahrt'));
-
-        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
-            'rides' => [$this->ride($openDay, $vehicleId, null, null, '12:00', 0)],
-        ]);
-        self::assertResponseIsSuccessful();
-        self::assertSame([], $this->jsonBody($client)['warnings']);
-
-        $this->request($client, 'PUT', '/api/v1/events/'.$openEvent['id'].'/rides', [
-            'rides' => [$this->ride($openDay, $vehicleId, '09:00', 0, null, null)],
-        ]);
-        self::assertResponseIsSuccessful();
-        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], 'Andere Fahrt'));
+        self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], '(Veröffentlicht)') || $this->warningsMention($this->jsonBody($client)['warnings'], '(Entwurf)'));
     }
 
     /** @param callable(KernelBrowser): void $callback */
@@ -411,7 +402,7 @@ final class RidePlanTest extends ApiTestCase
     }
 
     /** @return array<string, mixed> */
-    private function createEvent(KernelBrowser $client, string $title, string $status = 'published'): array
+    private function createEvent(KernelBrowser $client, string $title, string $status = 'published', string $date = '2026-12-05'): array
     {
         $this->request($client, 'POST', '/api/v1/events', [
             'title' => $title,
@@ -419,7 +410,7 @@ final class RidePlanTest extends ApiTestCase
             'categories' => ['Fahrt'],
             'status' => $status,
             'days' => [[
-                'date' => '2026-12-05',
+                'date' => $date,
                 'startsAt' => '09:00',
                 'endsAt' => '16:00',
                 'location' => 'Winterthur',
@@ -442,6 +433,26 @@ final class RidePlanTest extends ApiTestCase
         self::assertResponseStatusCodeSame(201);
         $id = $this->jsonBody($client)['id'];
         self::assertIsString($id);
+
+        return $id;
+    }
+
+    private function createExternalVehicle(KernelBrowser $client, string $name): string
+    {
+        $this->request($client, 'POST', '/api/v1/vehicles', [
+            'name' => $name,
+            'number' => null,
+            'status' => 'ready',
+            'tracksMotorHours' => false,
+            'technicalNote' => null,
+            'external' => true,
+            'owner' => 'Vermieter',
+            'nvr' => 'NVR-1',
+        ]);
+        self::assertResponseStatusCodeSame(201);
+        $id = $this->jsonBody($client)['id'];
+        self::assertIsString($id);
+        self::assertTrue($this->jsonBody($client)['external']);
 
         return $id;
     }

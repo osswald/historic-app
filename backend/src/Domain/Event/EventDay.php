@@ -34,14 +34,13 @@ class EventDay
     #[ORM\Column(length: 200, nullable: true)]
     private ?string $location;
 
-    #[ORM\Column(length: 200, nullable: true)]
-    private ?string $meetingPointName;
-
-    #[ORM\Column(type: Types::TEXT, nullable: true)]
-    private ?string $meetingPointDescription;
-
     #[ORM\Column]
     private int $sortOrder;
+
+    /** @var Collection<int, MeetingPoint> */
+    #[ORM\OneToMany(mappedBy: 'eventDay', targetEntity: MeetingPoint::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    private Collection $meetingPoints;
 
     /** @var Collection<int, EventResponse> */
     #[ORM\OneToMany(mappedBy: 'eventDay', targetEntity: EventResponse::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
@@ -53,8 +52,6 @@ class EventDay
         ?\DateTimeImmutable $startsAt,
         ?\DateTimeImmutable $endsAt,
         ?string $location,
-        ?string $meetingPointName,
-        ?string $meetingPointDescription,
         int $sortOrder,
         ?string $id = null,
     ) {
@@ -64,9 +61,8 @@ class EventDay
         $this->startsAt = $startsAt;
         $this->endsAt = $endsAt;
         $this->location = $location;
-        $this->meetingPointName = $meetingPointName;
-        $this->meetingPointDescription = $meetingPointDescription;
         $this->sortOrder = $sortOrder;
+        $this->meetingPoints = new ArrayCollection();
         $this->responses = new ArrayCollection();
     }
 
@@ -100,19 +96,35 @@ class EventDay
         return $this->location;
     }
 
-    public function meetingPointName(): ?string
-    {
-        return $this->meetingPointName;
-    }
-
-    public function meetingPointDescription(): ?string
-    {
-        return $this->meetingPointDescription;
-    }
-
     public function sortOrder(): int
     {
         return $this->sortOrder;
+    }
+
+    /** @return list<MeetingPoint> */
+    public function meetingPoints(): array
+    {
+        $points = $this->meetingPoints->toArray();
+        usort($points, static fn (MeetingPoint $left, MeetingPoint $right): int => $left->sortOrder() <=> $right->sortOrder());
+
+        return array_values($points);
+    }
+
+    /** @param list<array{place: Place, meetsAt: ?\DateTimeImmutable, description: ?string}> $points */
+    public function replaceMeetingPoints(array $points): void
+    {
+        foreach ($this->meetingPoints->toArray() as $point) {
+            $this->meetingPoints->removeElement($point);
+        }
+        foreach ($points as $index => $point) {
+            $this->meetingPoints->add(new MeetingPoint(
+                $this,
+                $point['place'],
+                $point['meetsAt'],
+                $point['description'],
+                $index,
+            ));
+        }
     }
 
     public function revisePlan(
@@ -120,16 +132,12 @@ class EventDay
         ?\DateTimeImmutable $startsAt,
         ?\DateTimeImmutable $endsAt,
         ?string $location,
-        ?string $meetingPointName,
-        ?string $meetingPointDescription,
         int $sortOrder,
     ): void {
         $this->occursOn = $occursOn;
         $this->startsAt = $startsAt;
         $this->endsAt = $endsAt;
         $this->location = $location;
-        $this->meetingPointName = $meetingPointName;
-        $this->meetingPointDescription = $meetingPointDescription;
         $this->sortOrder = $sortOrder;
     }
 

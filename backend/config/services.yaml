@@ -30,6 +30,8 @@ services:
     App\Domain\Ride\RideRepository: '@App\Infrastructure\Doctrine\DoctrineRideRepository'
     App\Domain\Fleet\VehicleRepository: '@App\Infrastructure\Doctrine\DoctrineVehicleRepository'
     App\Domain\Gastronomy\GastroPlanRepository: '@App\Infrastructure\Doctrine\DoctrineGastroPlanRepository'
+    App\Domain\Event\PlaceRepository: '@App\Infrastructure\Doctrine\DoctrinePlaceRepository'
+    App\Domain\Audit\AuditEntryRepository: '@App\Infrastructure\Doctrine\DoctrineAuditEntryRepository'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

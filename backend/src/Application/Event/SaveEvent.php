@@ -11,6 +11,9 @@ use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventStatus;
 use App\Domain\Event\EventRepository;
+use App\Domain\Event\Place;
+use App\Domain\Fleet\Vehicle;
+use App\Domain\Fleet\VehicleRepository;
 use App\Infrastructure\Audit\AuditRecorder;
 use App\Security\MemberUser;
 use Doctrine\ORM\EntityManagerInterface;
@@ -21,6 +24,8 @@ final class SaveEvent
     public function __construct(
         private EventRepository $events,
         private EventCatalog $catalog,
+        private PlaceDirectory $places,
+        private VehicleRepository $vehicles,
         private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
@@ -45,6 +50,9 @@ final class SaveEvent
             $now,
         );
         $this->syncDays($event, $input['days']);
+        if ($input['vehicles'] !== null) {
+            $event->replaceAssignedVehicles($input['vehicles']);
+        }
         $this->events->add($event);
         $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'create', null, $event->toAudit(), $now);
         $this->entityManager->flush();
@@ -72,6 +80,9 @@ final class SaveEvent
             $now,
         );
         $this->syncDays($event, $input['days']);
+        if ($input['vehicles'] !== null) {
+            $event->replaceAssignedVehicles($input['vehicles']);
+        }
         $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'update', $before, $event->toAudit(), $now);
         $this->entityManager->flush();
 
@@ -102,9 +113,9 @@ final class SaveEvent
      *         startsAt: ?\DateTimeImmutable,
      *         endsAt: ?\DateTimeImmutable,
      *         location: ?string,
-     *         meetingPointName: ?string,
-     *         meetingPointDescription: ?string
-     *     }>
+     *         meetingPoints: list<array{place: Place, meetsAt: \DateTimeImmutable, description: ?string}>
+     *     }>,
+     *     vehicles: ?list<array{vehicle: Vehicle, rentalStatus: ?string}>
      * }
      */
     private function normalize(array $payload): array
@@ -150,9 +161,8 @@ final class SaveEvent
             $startsRaw = trim((string) ($day['startsAt'] ?? ''));
             $endsRaw = trim((string) ($day['endsAt'] ?? ''));
             $location = $this->nullableText($day['location'] ?? null, 200);
-            $meetingName = $this->nullableText($day['meetingPointName'] ?? null, 200);
-            $meetingDescription = $this->nullableText($day['meetingPointDescription'] ?? null, 2000);
-            if ($dateRaw === '' && $startsRaw === '' && $endsRaw === '' && $location === null && $meetingName === null) {
+            $meetingPoints = $this->meetingPoints($day['meetingPoints'] ?? null, $index, $errors);
+            if ($dateRaw === '' && $startsRaw === '' && $endsRaw === '' && $location === null && $meetingPoints === []) {
                 continue;
             }
             $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateRaw);
@@ -175,12 +185,20 @@ final class SaveEvent
                 'startsAt' => $startsAt,
                 'endsAt' => $endsAt,
                 'location' => $location,
-                'meetingPointName' => $meetingName,
-                'meetingPointDescription' => $meetingDescription,
+                'meetingPoints' => $meetingPoints,
             ];
         }
         if ($days === []) {
             $errors['days'] = 'Bitte mindestens einen Veranstaltungstag angeben.';
+        }
+        $vehicles = array_key_exists('vehicles', $payload) ? $this->vehicles($payload['vehicles'], $errors) : null;
+        if ($location = $days[0]['location'] ?? null) {
+            $this->rememberPlace($location);
+        }
+        foreach ($days as $day) {
+            if (is_string($day['location']) && $day['location'] !== '') {
+                $this->rememberPlace($day['location']);
+            }
         }
 
         if ($errors !== []) {
@@ -197,6 +215,7 @@ final class SaveEvent
             'location' => $days[0]['location'] ?? null,
             'publishToWebsite' => (bool) ($payload['publishToWebsite'] ?? false),
             'days' => $days,
+            'vehicles' => $vehicles,
         ];
     }
 
@@ -205,6 +224,14 @@ final class SaveEvent
     {
         $kept = [];
         foreach ($days as $index => $day) {
+            $points = [];
+            foreach ($day['meetingPoints'] as $point) {
+                $points[] = [
+                    'place' => $this->places->named($point['placeName']),
+                    'meetsAt' => $point['meetsAt'],
+                    'description' => $point['description'],
+                ];
+            }
             $existing = is_string($day['id']) ? $event->day($day['id']) : null;
             if ($existing instanceof EventDay) {
                 $existing->revisePlan(
@@ -212,10 +239,9 @@ final class SaveEvent
                     $day['startsAt'],
                     $day['endsAt'],
                     $day['location'],
-                    $day['meetingPointName'],
-                    $day['meetingPointDescription'],
                     $index,
                 );
+                $existing->replaceMeetingPoints($points);
                 $kept[] = $existing->id();
                 continue;
             }
@@ -224,13 +250,103 @@ final class SaveEvent
                 $day['startsAt'],
                 $day['endsAt'],
                 $day['location'],
-                $day['meetingPointName'],
-                $day['meetingPointDescription'],
                 $index,
             );
+            $created->replaceMeetingPoints($points);
             $kept[] = $created->id();
         }
         $event->retainDays($kept);
+    }
+
+    /**
+     * @param array<string, string> $errors
+     * @return list<array{placeName: string, meetsAt: \DateTimeImmutable, description: ?string}>
+     */
+    private function meetingPoints(mixed $value, int|string $index, array &$errors): array
+    {
+        if ($value === null) {
+            return [];
+        }
+        if (!is_array($value)) {
+            $errors['days.'.$index.'.meetingPoints'] = 'Bitte die Treffpunkte als Liste angeben.';
+
+            return [];
+        }
+        $points = [];
+        foreach ($value as $pointIndex => $point) {
+            if (!is_array($point)) {
+                $errors['days.'.$index.'.meetingPoints.'.$pointIndex] = 'Der Treffpunkt ist ungültig.';
+                continue;
+            }
+            $name = trim((string) ($point['placeName'] ?? ''));
+            $timeRaw = trim((string) ($point['meetsAt'] ?? ''));
+            $description = $this->nullableText($point['description'] ?? null, 2000);
+            if ($name === '' && $timeRaw === '' && $description === null) {
+                continue;
+            }
+            if ($name === '' || mb_strlen($name) > 200) {
+                $errors['days.'.$index.'.meetingPoints.'.$pointIndex.'.placeName'] = 'Bitte einen Ort mit höchstens 200 Zeichen angeben.';
+                continue;
+            }
+            $meetsAt = $this->time($timeRaw);
+            if (!$meetsAt instanceof \DateTimeImmutable) {
+                $errors['days.'.$index.'.meetingPoints.'.$pointIndex.'.meetsAt'] = 'Bitte die Uhrzeit des Treffpunkts angeben.';
+                continue;
+            }
+            $this->rememberPlace($name);
+            $points[] = ['placeName' => $name, 'meetsAt' => $meetsAt, 'description' => $description];
+        }
+
+        return $points;
+    }
+
+    /**
+     * @param array<string, string> $errors
+     * @return list<array{vehicle: Vehicle, rentalStatus: ?string}>
+     */
+    private function vehicles(mixed $value, array &$errors): array
+    {
+        if (!is_array($value)) {
+            $errors['vehicles'] = 'Bitte die Fahrzeugliste als Liste angeben.';
+
+            return [];
+        }
+        $fleet = [];
+        foreach ($this->vehicles->all() as $vehicle) {
+            $fleet[$vehicle->id()] = $vehicle;
+        }
+        $rows = [];
+        $seen = [];
+        foreach ($value as $index => $row) {
+            if (!is_array($row)) {
+                $errors['vehicles.'.$index] = 'Das Fahrzeug ist ungültig.';
+                continue;
+            }
+            $id = trim((string) ($row['vehicleId'] ?? ''));
+            $vehicle = $fleet[$id] ?? null;
+            if (!$vehicle instanceof Vehicle) {
+                $errors['vehicles.'.$index.'.vehicleId'] = 'Bitte ein Fahrzeug aus dem Fahrzeugstamm wählen.';
+                continue;
+            }
+            if (isset($seen[$id])) {
+                $errors['vehicles.'.$index.'.vehicleId'] = 'Dieses Fahrzeug ist in der Liste bereits enthalten.';
+                continue;
+            }
+            $seen[$id] = true;
+            $rental = trim((string) ($row['rentalStatus'] ?? ''));
+            if (mb_strlen($rental) > 80) {
+                $errors['vehicles.'.$index.'.rentalStatus'] = 'Bitte höchstens 80 Zeichen für den Mietstatus angeben.';
+                continue;
+            }
+            $rows[] = ['vehicle' => $vehicle, 'rentalStatus' => $rental !== '' ? $rental : null];
+        }
+
+        return $rows;
+    }
+
+    private function rememberPlace(string $name): void
+    {
+        $this->places->named($name);
     }
 
     private function time(string $value): ?\DateTimeImmutable

@@ -27,4 +27,22 @@ enum Daypart: string
             self::Evening => 2,
         };
     }
+
+    public function standardStart(): string
+    {
+        return match ($this) {
+            self::Morning => '09:00',
+            self::Afternoon => '13:00',
+            self::Evening => '17:00',
+        };
+    }
+
+    public function standardEnd(): string
+    {
+        return match ($this) {
+            self::Morning => '13:00',
+            self::Afternoon => '17:00',
+            self::Evening => '21:00',
+        };
+    }
 }

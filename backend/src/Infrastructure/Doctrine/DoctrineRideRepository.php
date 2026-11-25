@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Doctrine;
 
+use App\Domain\Event\EventStatus;
 use App\Domain\Ride\AssignmentKind;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideRepository;
@@ -28,6 +29,13 @@ final class DoctrineRideRepository extends ServiceEntityRepository implements Ri
         $this->getEntityManager()->remove($ride);
     }
 
+    public function get(string $id): ?Ride
+    {
+        $ride = $this->find($id);
+
+        return $ride instanceof Ride ? $ride : null;
+    }
+
     public function forEvent(string $eventId): array
     {
         /** @var list<Ride> $rides */
@@ -48,10 +56,13 @@ final class DoctrineRideRepository extends ServiceEntityRepository implements Ri
         $rides = $this->createQueryBuilder('ride')
             ->distinct()
             ->innerJoin('ride.vehicles', 'assignment')
+            ->innerJoin('ride.event', 'occasion')
             ->andWhere('assignment.kind = :kind')
             ->andWhere('IDENTITY(ride.event) != :eventId')
+            ->andWhere('occasion.status != :cancelled')
             ->setParameter('kind', AssignmentKind::Own)
             ->setParameter('eventId', $eventId)
+            ->setParameter('cancelled', EventStatus::Cancelled)
             ->getQuery()
             ->getResult();
 

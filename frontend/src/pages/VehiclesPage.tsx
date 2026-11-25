@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import type { FleetList, FleetVehicle, VehicleStatus } from '../api/types'
+import { AuditHistory } from '../components/AuditHistory'
 import { useToast } from '../shell/context'
 
 const STATUSES: Array<{ value: VehicleStatus; label: string }> = [
@@ -20,6 +21,13 @@ type Draft = {
   status: VehicleStatus
   tracksMotorHours: boolean
   technicalNote: string
+  external: boolean
+  owner: string
+  nvr: string
+  p1On: string
+  p5On: string
+  oilOn: string
+  nextMaintenanceOn: string
 }
 
 export function VehiclesPage() {
@@ -51,15 +59,15 @@ export function VehiclesPage() {
         <div>
           <div className="eyebrow">Fahrzeugstamm</div>
           <h1>Historische Fahrzeuge</h1>
-          <div className="hello">{technical ? 'Interner Überblick mit Status und letztem Batterieladen.' : 'Namen und Nummern der Vereinsfahrzeuge.'}</div>
+          <div className="hello">{technical ? 'Interner Überblick mit Status und letztem Batterieladen.' : 'Namen, Nummern und Batterieladungen der Fahrzeuge.'}</div>
         </div>
         {list?.canEdit ? <button className="btn primary" type="button" onClick={() => setCreating(true)}>+ Fahrzeug</button> : null}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="note" style={{ marginBottom: 16 }}>
         {technical
-          ? 'ZEDAS bleibt das Wartungssystem. Hier stehen Status, Batterieladung und Zählerstände.'
-          : 'ZEDAS bleibt das Wartungssystem. Batterieladung und Zählerstände sieht die Technische Kommission.'}
+          ? 'ZEDAS bleibt das Wartungssystem. Hier stehen Status, P1, P5, Öl, das nächste Wartungsdatum, Batterieladung und Zählerstände.'
+          : 'ZEDAS bleibt das Wartungssystem. Jedes Mitglied kann eine Batterieladung erfassen. Technische Angaben sieht die Technische Kommission.'}
       </div>
       {creating && list?.canEdit ? (
         <VehicleForm
@@ -76,25 +84,30 @@ export function VehiclesPage() {
       {!list && !error ? <p className="empty">Wird geladen …</p> : null}
       <div className="inline-cards">
         {list?.vehicles.map((vehicle) => (
-          <VehicleCard canEdit={list.canEdit} key={vehicle.id} technical={technical} vehicle={vehicle} onChange={replace} />
+          <VehicleCard canEdit={list.canEdit} canRecordBattery={list.canRecordBattery} key={vehicle.id} technical={technical} vehicle={vehicle} onChange={replace} />
         ))}
       </div>
     </section>
   )
 }
 
-function VehicleCard({ vehicle, technical, canEdit, onChange }: { vehicle: FleetVehicle; technical: boolean; canEdit: boolean; onChange: (vehicle: FleetVehicle) => void }) {
+function VehicleCard({ vehicle, technical, canEdit, canRecordBattery, onChange }: { vehicle: FleetVehicle; technical: boolean; canEdit: boolean; canRecordBattery: boolean; onChange: (vehicle: FleetVehicle) => void }) {
   const toast = useToast()
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [chargedOn, setChargedOn] = useState(zurichToday())
   const latestBattery = vehicle.batteryCharges?.[0]
 
-  async function charge() {
+  async function charge(submit?: FormEvent) {
+    submit?.preventDefault()
     setBusy(true)
     setError(null)
     try {
-      const saved = await api<FleetVehicle>(`/api/v1/vehicles/${vehicle.id}/battery-charges`, { method: 'POST', body: '{}' })
+      const saved = await api<FleetVehicle>(`/api/v1/vehicles/${vehicle.id}/battery-charges`, {
+        method: 'POST',
+        body: JSON.stringify({ chargedOn }),
+      })
       onChange(saved)
       toast('Batterieladung protokolliert.')
     } catch (reason) {
@@ -106,15 +119,16 @@ function VehicleCard({ vehicle, technical, canEdit, onChange }: { vehicle: Fleet
 
   return (
     <div className="vehicle">
-      <h3>{vehicle.label} <span className={pillClass(vehicle.status)}>{vehicle.statusLabel}</span></h3>
+      <h3>{vehicle.label}{vehicle.external ? ' · Extern' : ''} <span className={pillClass(vehicle.status)}>{vehicle.statusLabel}</span></h3>
       {technical && vehicle.tracksMotorHours === false ? <p>Wagen ohne Motorstunden-Zähler.</p> : null}
-      {technical ? <p>{latestBattery ? `Letzte Batterieladung: ${formatDate(latestBattery.chargedOn)}` : 'Noch keine Batterieladung erfasst.'}</p> : null}
+      <p>{latestBattery ? `Letzte Batterieladung: ${formatDate(latestBattery.chargedOn)}` : 'Noch keine Batterieladung erfasst.'}</p>
       {error ? <div className="field-error">{error}</div> : null}
-      {canEdit ? (
-        <div className="vehicle-actions">
-          <button className="btn small light" disabled={busy} type="button" onClick={() => { void charge() }}>Batterien geladen</button>
-          <button className="btn small light" type="button" onClick={() => setOpen((value) => !value)}>{open ? 'Schliessen' : 'Details'}</button>
-        </div>
+      {canRecordBattery ? (
+        <form className="vehicle-actions" onSubmit={(submit) => { void charge(submit) }}>
+          <input aria-label="Datum der Batterieladung" className="input" max={zurichToday()} type="date" value={chargedOn} onChange={(input) => setChargedOn(input.target.value)} />
+          <button className="btn small light" disabled={busy} type="submit">Batterien geladen</button>
+          {canEdit ? <button className="btn small light" type="button" onClick={() => setOpen((value) => !value)}>{open ? 'Schliessen' : 'Details'}</button> : null}
+        </form>
       ) : null}
       {open && technical ? <VehicleDetails vehicle={vehicle} onChange={onChange} /> : null}
     </div>
@@ -174,6 +188,9 @@ function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange
           <button className="btn small light" disabled={busy} type="submit">Zählerstand erfassen</button>
         </div>
       </form>
+      <p className="muted">P1 {formatOptional(vehicle.p1On)} · P5 {formatOptional(vehicle.p5On)} · Öl {formatOptional(vehicle.oilOn)} · Nächste Wartung {formatOptional(vehicle.nextMaintenanceOn)}</p>
+      {vehicle.owner ? <p>Eigentümerkontakt: {vehicle.owner}</p> : null}
+      {vehicle.nvr ? <p>NVR: {vehicle.nvr}</p> : null}
       {(vehicle.meterReadings ?? []).length > 0 ? (
         <ul className="meter-list">
           {(vehicle.meterReadings ?? []).map((reading) => (
@@ -182,13 +199,7 @@ function VehicleDetails({ vehicle, onChange }: { vehicle: FleetVehicle; onChange
         </ul>
       ) : <p>Noch keine Zählerstände erfasst.</p>}
       <VehicleForm
-        initial={{
-          name: vehicle.name,
-          number: vehicle.number ?? '',
-          status: vehicle.status,
-          tracksMotorHours: vehicle.tracksMotorHours !== false,
-          technicalNote: vehicle.technicalNote ?? '',
-        }}
+        initial={draftFrom(vehicle)}
         title="Stammdaten"
         vehicleId={vehicle.id}
         onSaved={(saved) => {
@@ -220,6 +231,13 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
           status: draft.status,
           tracksMotorHours: draft.tracksMotorHours,
           technicalNote: draft.technicalNote === '' ? null : draft.technicalNote,
+          external: draft.external,
+          owner: draft.owner === '' ? null : draft.owner,
+          nvr: draft.nvr === '' ? null : draft.nvr,
+          p1On: draft.p1On === '' ? null : draft.p1On,
+          p5On: draft.p5On === '' ? null : draft.p5On,
+          oilOn: draft.oilOn === '' ? null : draft.oilOn,
+          nextMaintenanceOn: draft.nextMaintenanceOn === '' ? null : draft.nextMaintenanceOn,
         }),
       })
       onSaved(saved)
@@ -257,14 +275,50 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
         {fieldErrors.status ? <div className="field-error">{fieldErrors.status}</div> : null}
       </div>
       <label className="toggle">
+        <input checked={draft.external} type="checkbox" onChange={(input) => setDraft({ ...draft, external: input.target.checked })} />
+        Extern
+      </label>
+      <div className="formfield">
+        <label>Eigentümerkontakt</label>
+        <input className="input" value={draft.owner} onChange={(input) => setDraft({ ...draft, owner: input.target.value })} />
+        {fieldErrors.owner ? <div className="field-error">{fieldErrors.owner}</div> : null}
+      </div>
+      <div className="formfield">
+        <label>NVR</label>
+        <input className="input" value={draft.nvr} onChange={(input) => setDraft({ ...draft, nvr: input.target.value })} />
+        {fieldErrors.nvr ? <div className="field-error">{fieldErrors.nvr}</div> : null}
+      </div>
+      <label className="toggle">
         <input checked={draft.tracksMotorHours} type="checkbox" onChange={(input) => setDraft({ ...draft, tracksMotorHours: input.target.checked })} />
         Motorstunden-Zähler
       </label>
+      <div className="formrow cols2">
+        <div className="formfield">
+          <label>P1</label>
+          <input className="input" type="date" value={draft.p1On} onChange={(input) => setDraft({ ...draft, p1On: input.target.value })} />
+        </div>
+        <div className="formfield">
+          <label>P5</label>
+          <input className="input" type="date" value={draft.p5On} onChange={(input) => setDraft({ ...draft, p5On: input.target.value })} />
+        </div>
+      </div>
+      <div className="formrow cols2">
+        <div className="formfield">
+          <label>Öl</label>
+          <input className="input" type="date" value={draft.oilOn} onChange={(input) => setDraft({ ...draft, oilOn: input.target.value })} />
+        </div>
+        <div className="formfield">
+          <label>Nächste Wartung</label>
+          <input className="input" type="date" value={draft.nextMaintenanceOn} onChange={(input) => setDraft({ ...draft, nextMaintenanceOn: input.target.value })} />
+        </div>
+      </div>
       <div className="formfield">
         <label>Technische Notiz</label>
         <textarea className="input" value={draft.technicalNote} onChange={(input) => setDraft({ ...draft, technicalNote: input.target.value })} />
+        {draft.status !== 'ready' ? <p className="muted">Bei Eingeschränkt und Gesperrt ist ein Grund erforderlich. Die Zuteilung bleibt erlaubt.</p> : null}
         {fieldErrors.technicalNote ? <div className="field-error">{fieldErrors.technicalNote}</div> : null}
       </div>
+      {vehicleId ? <AuditHistory entityId={vehicleId} entityType="vehicle" /> : null}
       <div className="vehicle-actions">
         <button className="btn primary small" disabled={busy} type="submit">Speichern</button>
         {onCancel ? <button className="btn small light" type="button" onClick={onCancel}>Abbrechen</button> : null}
@@ -274,7 +328,32 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
 }
 
 function emptyDraft(): Draft {
-  return { name: '', number: '', status: 'ready', tracksMotorHours: true, technicalNote: '' }
+  return { name: '', number: '', status: 'ready', tracksMotorHours: true, technicalNote: '', external: false, owner: '', nvr: '', p1On: '', p5On: '', oilOn: '', nextMaintenanceOn: '' }
+}
+
+function draftFrom(vehicle: FleetVehicle): Draft {
+  return {
+    name: vehicle.name,
+    number: vehicle.number ?? '',
+    status: vehicle.status,
+    tracksMotorHours: vehicle.tracksMotorHours !== false,
+    technicalNote: vehicle.technicalNote ?? '',
+    external: vehicle.external,
+    owner: vehicle.owner ?? '',
+    nvr: vehicle.nvr ?? '',
+    p1On: vehicle.p1On ?? '',
+    p5On: vehicle.p5On ?? '',
+    oilOn: vehicle.oilOn ?? '',
+    nextMaintenanceOn: vehicle.nextMaintenanceOn ?? '',
+  }
+}
+
+function formatOptional(value: string | null | undefined): string {
+  return value ? formatDate(value) : '—'
+}
+
+function zurichToday(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
 }
 
 function pillClass(status: VehicleStatus): string {

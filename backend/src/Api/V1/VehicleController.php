@@ -43,10 +43,10 @@ final class VehicleController extends ApiController
     }
 
     #[Route('/api/v1/vehicles/{id}/battery-charges', name: 'api_vehicle_battery', methods: ['POST'])]
-    public function charge(string $id, RecordBatteryCharge $record, FleetPresenter $presenter): Response
+    public function charge(string $id, Request $request, RecordBatteryCharge $record, FleetPresenter $presenter): Response
     {
         $user = $this->member();
-        $vehicle = $record($user, $id);
+        $vehicle = $record($user, $id, $this->payload($request));
 
         return $this->jsonData($presenter->one($vehicle, $user), Response::HTTP_CREATED);
     }

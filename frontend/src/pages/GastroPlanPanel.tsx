@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, GastroPlan, GastroView } from '../api/types'
+import { AuditHistory } from '../components/AuditHistory'
 import { useMember, useToast } from '../shell/context'
 
 type DishDraft = {
@@ -17,6 +18,7 @@ type ResponsibleDraft = {
 
 type Draft = {
   notes: string
+  guestCount: string
   dishes: DishDraft[]
   responsible: ResponsibleDraft[]
 }
@@ -56,6 +58,9 @@ export function GastroPlanPanel({ event }: { event: ClubEvent }) {
         method: 'PUT',
         body: JSON.stringify({
           notes: draft.notes,
+          guestCount: draft.guestCount.trim() === ''
+            ? null
+            : (/^\d+$/.test(draft.guestCount.trim()) ? Number(draft.guestCount.trim()) : draft.guestCount),
           dishes: draft.dishes
             .filter((dish) => dish.name.trim() !== '' || dish.portions.trim() !== '')
             .map((dish) => ({
@@ -94,7 +99,7 @@ export function GastroPlanPanel({ event }: { event: ClubEvent }) {
       <div className="panel">
         <div className="panel-head"><h2>Gastronomieplanung</h2></div>
         <div className="panel-inner" style={{ paddingTop: 0 }}>
-          <div className="note">Getränke und Artikel kommen später aus dem CashCtrl-Mandanten des Supporterclubs. Hier stehen Gerichte, Portionen, eine Notiz und die Verantwortlichen.</div>
+          <div className="note">Eine frei geschätzte Gästezahl, Gerichte, Portionen, eine Notiz und die Verantwortlichen. Getränke und Preise werden hier nicht geführt.</div>
         </div>
         {!plan ? <p className="empty">Noch keine Gastronomieplanung.</p> : (
           <div className="panel-inner" style={{ paddingTop: 0 }}>
@@ -106,6 +111,7 @@ export function GastroPlanPanel({ event }: { event: ClubEvent }) {
                 </div>
               </div>
             ))}
+            <p className="muted">{plan.guestCount === null ? 'Gästezahl noch offen.' : `Geschätzte Gäste: ${plan.guestCount}`}</p>
             {plan.notes ? <p className="ride-note note">{plan.notes}</p> : null}
             <p className="muted">{plan.responsible.length === 0 ? 'Noch niemand verantwortlich.' : `Verantwortlich: ${plan.responsible.map((person) => person.name).join(', ')}`}</p>
           </div>
@@ -119,7 +125,10 @@ export function GastroPlanPanel({ event }: { event: ClubEvent }) {
               <button className="btn primary small" disabled={busy} type="submit">Planung speichern</button>
             </div>
             <div className="panel-inner" style={{ paddingTop: 0 }}>
-              <div className="note">Das Gastro-Team und die hier benannten Verantwortlichen dürfen die Planung ändern.</div>
+              <div className="note">Administratoren, das Gastro-Team und die hier benannten Verantwortlichen dürfen die Planung ändern.</div>
+              <Field error={fieldErrors.guestCount} label="Geschätzte Gästezahl">
+                <input className="input" inputMode="numeric" value={draft.guestCount} onChange={(input) => setDraft((current) => ({ ...current, guestCount: input.target.value }))} />
+              </Field>
               <div className="formfield">
                 <label>Gerichte</label>
                 {fieldErrors.dishes ? <div className="field-error">{fieldErrors.dishes}</div> : null}
@@ -160,6 +169,7 @@ export function GastroPlanPanel({ event }: { event: ClubEvent }) {
           </div>
         </form>
       ) : null}
+      {canEdit && plan ? <AuditHistory entityId={plan.id} entityType="gastro_plan" /> : null}
     </div>
   )
 }
@@ -179,7 +189,7 @@ function blankDish(): DishDraft {
 }
 
 function emptyDraft(): Draft {
-  return { notes: '', dishes: [], responsible: [] }
+  return { notes: '', guestCount: '', dishes: [], responsible: [] }
 }
 
 function toDraft(plan: GastroPlan | null): Draft {
@@ -188,6 +198,7 @@ function toDraft(plan: GastroPlan | null): Draft {
   }
   return {
     notes: plan.notes ?? '',
+    guestCount: plan.guestCount === null ? '' : String(plan.guestCount),
     dishes: plan.dishes.map((dish) => ({ key: dish.id, name: dish.name, portions: String(dish.portions) })),
     responsible: plan.responsible.map((person) => ({ key: person.sub, sub: person.sub, name: person.name })),
   }

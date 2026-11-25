@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
+import { AuditHistory } from '../components/AuditHistory'
 import { useMember, useToast } from '../shell/context'
 import { GastroPlanPanel } from './GastroPlanPanel'
 import { RidePlanPanel } from './RidePlanPanel'
@@ -17,19 +18,38 @@ type Tab = (typeof TABS)[number]['id']
 
 export function EventDetailPage() {
   const { id } = useParams()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
   const member = useMember()
   const toast = useToast()
+  const requested = params.get('bereich')
   const [event, setEvent] = useState<ClubEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('overview')
+  const [tab, setTab] = useState<Tab>(requested === 'gastro' || requested === 'rides' || requested === 'tasks' ? requested : 'overview')
   const [busy, setBusy] = useState(false)
+  const [copying, setCopying] = useState(false)
 
   useEffect(() => {
     if (!id) return
+    setCopying(false)
     api<ClubEvent>(`/api/v1/events/${id}`)
       .then(setEvent)
       .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Veranstaltung konnte nicht geladen werden.'))
   }, [id])
+
+  async function copyEvent() {
+    if (!event) return
+    setCopying(true)
+    setError(null)
+    try {
+      const copied = await api<ClubEvent>(`/api/v1/events/${event.id}/copy`, { method: 'POST', body: '{}' })
+      toast('Entwurf angelegt.')
+      void navigate(`/veranstaltungen/${copied.id}`)
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Die Kopie konnte nicht angelegt werden.')
+      setCopying(false)
+    }
+  }
 
   async function answer(dayId: string, value: 'yes' | 'no', comment: string) {
     setBusy(true)
@@ -54,7 +74,7 @@ export function EventDetailPage() {
     return <p className="empty">Wird geladen …</p>
   }
 
-  const meeting = event.days.find((day) => day.meetingPointName) ?? event.days[0]
+  const meetingPoints = event.days.flatMap((day) => day.meetingPoints.map((point) => ({ ...point, day: day.line1 })))
 
   return (
     <section>
@@ -62,6 +82,7 @@ export function EventDetailPage() {
         <Link className="btn small light" to="/veranstaltungen">‹ Veranstaltungen</Link>
         <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
           <span className={event.status === 'published' ? 'pill green' : event.status === 'cancelled' ? 'pill red' : 'pill gray'}>{event.statusLabel}</span>
+          {member?.canOrganize ? <button className="btn small light" disabled={copying} type="button" onClick={() => { void copyEvent() }}>Kopieren</button> : null}
           {member?.canOrganize ? <Link className="btn small" to={`/veranstaltungen/${event.id}/bearbeiten`}>✎ Bearbeiten</Link> : null}
         </div>
       </div>
@@ -97,10 +118,32 @@ export function EventDetailPage() {
             <div className="panel">
               <div className="panel-head"><h2>Treffpunkt</h2></div>
               <div className="panel-inner" style={{ paddingTop: 0 }}>
-                <b>{meeting?.meetingPointName ?? 'Noch kein Treffpunkt'}</b>
-                {meeting?.meetingPointDescription ? <p className="muted">{meeting.meetingPointDescription}</p> : null}
+                {meetingPoints.length === 0 ? <b>Noch kein Treffpunkt</b> : meetingPoints.map((point) => (
+                  <div className="item" key={point.id}>
+                    <div>
+                      <b>{point.placeName}{point.meetsAt ? ` · ${point.meetsAt}` : ''}</b>
+                      <small>{point.day}{point.description ? ` · ${point.description}` : ''}</small>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
+            {(event.vehicles ?? []).length > 0 ? (
+              <div className="panel">
+                <div className="panel-head"><h2>Fahrzeugliste</h2></div>
+                <div className="panel-inner" style={{ paddingTop: 0 }}>
+                  {event.vehicles.map((vehicle) => (
+                    <div className="item" key={vehicle.vehicleId}>
+                      <div>
+                        <b>{vehicle.label}{vehicle.external ? ' · Extern' : ''}</b>
+                        <small>{vehicle.rentalStatus ? `Mietstatus: ${vehicle.rentalStatus}` : vehicle.statusLabel}</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {member?.canOrganize ? <AuditHistory entityId={event.id} entityType="event" /> : null}
             <div className="panel">
               <div className="panel-head"><h2>Verknüpfte Bereiche</h2></div>
               <div className="panel-inner" style={{ paddingTop: 0 }}>

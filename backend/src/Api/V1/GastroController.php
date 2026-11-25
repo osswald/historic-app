@@ -13,6 +13,12 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class GastroController extends ApiController
 {
+    #[Route('/api/v1/gastronomy', name: 'api_gastronomy', methods: ['GET'])]
+    public function index(GastroCatalog $catalog): Response
+    {
+        return $this->jsonData($catalog->overview($this->member()));
+    }
+
     #[Route('/api/v1/events/{id}/gastronomy', name: 'api_event_gastronomy', methods: ['GET'])]
     public function show(string $id, GastroCatalog $catalog): Response
     {

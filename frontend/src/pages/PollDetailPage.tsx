@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { Answer, Daypart, PollDetail, PollOption } from '../api/types'
+import { AuditHistory } from '../components/AuditHistory'
 import { useMember, useToast } from '../shell/context'
 
 const DAYPARTS: Daypart[] = ['morning', 'afternoon', 'evening']
@@ -10,11 +11,11 @@ export function PollDetailPage() {
   const { id } = useParams()
   const member = useMember()
   const toast = useToast()
-  const navigate = useNavigate()
   const [poll, setPoll] = useState<PollDetail | null>(null)
   const [choices, setChoices] = useState<Record<string, Answer | ''>>({})
   const [comment, setComment] = useState('')
   const [picked, setPicked] = useState<Record<string, boolean>>({})
+  const [statuses, setStatuses] = useState<Record<string, 'draft' | 'published'>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
@@ -46,10 +47,6 @@ export function PollDetailPage() {
 
   async function save() {
     if (!poll) return
-    if (poll.options.some((option) => choices[option.id] !== 'yes' && choices[option.id] !== 'no')) {
-      setError('Bitte jede Option mit Ja oder Nein beantworten. Speichern gilt erst für alle angezeigten Optionen.')
-      return
-    }
     setBusy(true)
     setError(null)
     try {
@@ -57,7 +54,9 @@ export function PollDetailPage() {
         method: 'POST',
         body: JSON.stringify({
           comment,
-          votes: poll.options.map((option) => ({ optionId: option.id, answer: choices[option.id] })),
+          votes: poll.options
+            .filter((option) => choices[option.id] === 'yes' || choices[option.id] === 'no')
+            .map((option) => ({ optionId: option.id, answer: choices[option.id] })),
         }),
       })
       apply(saved)
@@ -71,22 +70,27 @@ export function PollDetailPage() {
 
   async function adopt() {
     if (!poll) return
-    const optionIds = poll.options.filter((option) => picked[option.id]).map((option) => option.id)
-    if (optionIds.length === 0) {
-      setError('Bitte mindestens eine Option für die Veranstaltung auswählen.')
+    const adoptions = poll.options
+      .filter((option) => picked[option.id] && !option.adoptedEventId)
+      .map((option) => ({ optionId: option.id, status: statuses[option.id] ?? 'draft' }))
+    if (adoptions.length === 0) {
+      setError('Bitte mindestens einen noch nicht übernommenen Vorschlag auswählen.')
       return
     }
     setBusy(true)
     setError(null)
     try {
-      const event = await api<{ id: string }>(`/api/v1/polls/${poll.id}/event`, {
+      const created = await api<{ events: Array<{ id: string; title: string }> }>(`/api/v1/polls/${poll.id}/event`, {
         method: 'POST',
-        body: JSON.stringify({ optionIds }),
+        body: JSON.stringify({ adoptions }),
       })
-      toast('Veranstaltung erzeugt. Die Antworten gelten dort neu.')
-      void navigate(`/veranstaltungen/${event.id}`)
+      const fresh = await api<PollDetail>(`/api/v1/polls/${poll.id}`)
+      apply(fresh)
+      setPicked({})
+      toast(created.events.length === 1 ? 'Veranstaltung erzeugt.' : `${created.events.length} Veranstaltungen erzeugt.`)
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Die Veranstaltung konnte nicht erzeugt werden.')
+    } finally {
       setBusy(false)
     }
   }
@@ -95,7 +99,7 @@ export function PollDetailPage() {
     return <section>{error ? <div className="banner-error">{error}</div> : <p className="empty">Wird geladen …</p>}</section>
   }
 
-  const locked = !poll.acceptsAnswers
+  const locked = poll.status === 'closed'
 
   return (
     <section>
@@ -112,7 +116,7 @@ export function PollDetailPage() {
         <div className="panel-head">
           <h2>Meine Verfügbarkeit</h2>
           <span className={poll.myState === 'complete' ? 'pill green' : 'pill orange'}>
-            {locked && poll.status === 'closed' ? 'Geschlossen' : locked && poll.deadlinePassed ? 'Antwortfrist abgelaufen' : poll.myStateLabel}
+            {poll.status === 'closed' ? 'Geschlossen' : poll.myStateLabel}
           </span>
         </div>
         <div className="panel-inner" style={{ paddingTop: 0 }}>
@@ -120,7 +124,8 @@ export function PollDetailPage() {
             {poll.kind === 'depot'
               ? 'Monatsumfrage: alle eingetragenen Kalendertage mit Vormittag, Nachmittag und Abend. '
               : ''}
-            Erst Speichern setzt Ja oder Nein für alle aktuellen Optionen. Eine später ergänzte oder geänderte Option bleibt offen und verlangt eine Ergänzung.
+            Speichern setzt nicht markierte aktuelle Optionen auf Nein. Eine später ergänzte oder geänderte Option bleibt offen und verlangt eine Ergänzung.
+            {poll.deadlinePassed && poll.status !== 'closed' ? ' Die Antwortfrist ist abgelaufen und dient später nur der Erinnerung.' : ''}
           </p>
           {poll.kind === 'depot' ? poll.days.map((day) => (
             <div className={day.options.some((option) => option.needsSupplement) ? 'surveyrow needs' : 'surveyrow'} key={day.date}>
@@ -152,26 +157,36 @@ export function PollDetailPage() {
           </div>
         </div>
       </div>
-      {poll.eventId ? (
-        <p className="note">Aus dieser Umfrage wurde bereits eine Veranstaltung erzeugt. Die Zusagen dort sind neu. <Link to={`/veranstaltungen/${poll.eventId}`}>Zur Veranstaltung ›</Link></p>
-      ) : null}
-      {member?.canOrganize && !poll.eventId ? (
+      {member?.canOrganize ? (
         <div className="panel" style={{ marginTop: 16 }}>
           <div className="panel-head"><h2>Als Veranstaltung übernehmen</h2></div>
           <div className="panel-inner">
-            <p className="muted" style={{ marginTop: 0 }}>Es entsteht höchstens eine Veranstaltung. Die Antworten der Umfrage werden nicht übernommen.</p>
+            <p className="muted" style={{ marginTop: 0 }}>Jeder Vorschlag kann einzeln als Entwurf oder veröffentlicht übernommen werden. Ein bereits übernommener Vorschlag bleibt gesperrt. Die Antworten der Umfrage werden nicht übernommen.</p>
             <div className="stack">
               {poll.options.map((option) => (
-                <label className="toggle" key={option.id}>
-                  <input checked={picked[option.id] === true} type="checkbox" onChange={() => setPicked((current) => ({ ...current, [option.id]: !current[option.id] }))} />
-                  {option.dateLabel}{option.daypartLabel ? ` · ${option.daypartLabel}` : ''}{option.startsAt ? ` · ${timeLabel(option)}` : ''}
-                </label>
+                option.adoptedEventId ? (
+                  <p key={option.id}>
+                    {option.dateLabel}{option.daypartLabel ? ` · ${option.daypartLabel}` : ''} ist übernommen. <Link to={`/veranstaltungen/${option.adoptedEventId}`}>Zur Veranstaltung ›</Link>
+                  </p>
+                ) : (
+                  <div className="vehicle-line" key={option.id}>
+                    <label className="toggle">
+                      <input checked={picked[option.id] === true} type="checkbox" onChange={() => setPicked((current) => ({ ...current, [option.id]: !current[option.id] }))} />
+                      {option.dateLabel}{option.daypartLabel ? ` · ${option.daypartLabel}` : ''}{option.startsAt ? ` · ${timeLabel(option)}` : ''}
+                    </label>
+                    <select className="input" value={statuses[option.id] ?? 'draft'} onChange={(event) => setStatuses((current) => ({ ...current, [option.id]: event.target.value === 'published' ? 'published' : 'draft' }))}>
+                      <option value="draft">Entwurf</option>
+                      <option value="published">Veröffentlicht</option>
+                    </select>
+                  </div>
+                )
               ))}
             </div>
-            <button className="btn primary" disabled={busy} style={{ marginTop: 14 }} type="button" onClick={() => { void adopt() }}>Veranstaltung erzeugen</button>
+            <button className="btn primary" disabled={busy} style={{ marginTop: 14 }} type="button" onClick={() => { void adopt() }}>Ausgewählte übernehmen</button>
           </div>
         </div>
       ) : null}
+      {member?.canOrganize ? <div style={{ marginTop: 16 }}><AuditHistory entityId={poll.id} entityType="poll" /></div> : null}
     </section>
   )
 }
@@ -186,8 +201,21 @@ function Slot({ option, choice, locked, busy, onChoose }: { option: PollOption; 
           <button className={choice === 'no' ? 'btn small choice active-no' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'no')}>✕ Nein</button>
         </div>
         {option.needsSupplement ? <small>Ergänzung erforderlich</small> : null}
-        {option.yesCount > 0 ? <div className="yes-names">{option.yesCount} Ja · {option.yesNames.join(', ')}</div> : null}
+        <AnswerLines answers={option.yesAnswers ?? []} count={option.yesCount} label="Ja" />
+        <AnswerLines answers={option.noAnswers ?? []} count={option.noCount} label="Nein" />
       </div>
+    </div>
+  )
+}
+
+function AnswerLines({ answers, count, label }: { answers: Array<{ name: string; comment: string | null }>; count: number; label: string }) {
+  if (count === 0) return null
+  return (
+    <div className="yes-names">
+      {count} {label}
+      {answers.map((answer) => (
+        <div key={`${label}-${answer.name}`}>{answer.name}{answer.comment ? ` · ${answer.comment}` : ''}</div>
+      ))}
     </div>
   )
 }

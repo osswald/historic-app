@@ -150,7 +150,7 @@ class Poll
 
     public function acceptsAnswers(\DateTimeImmutable $now): bool
     {
-        return $this->status === PollStatus::Open && !$this->deadlinePassed($now);
+        return $this->status === PollStatus::Open;
     }
 
     public function deadlinePassed(\DateTimeImmutable $now): bool

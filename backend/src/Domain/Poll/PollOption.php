@@ -41,6 +41,9 @@ class PollOption
     #[ORM\Column]
     private int $revision = 1;
 
+    #[ORM\Column(type: Types::GUID, nullable: true)]
+    private ?string $adoptedEventId = null;
+
     /** @var Collection<int, PollVote> */
     #[ORM\OneToMany(mappedBy: 'option', targetEntity: PollVote::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $votes;
@@ -97,6 +100,21 @@ class PollOption
     public function revision(): int
     {
         return $this->revision;
+    }
+
+    public function adoptedEventId(): ?string
+    {
+        return $this->adoptedEventId;
+    }
+
+    public function isAdopted(): bool
+    {
+        return $this->adoptedEventId !== null;
+    }
+
+    public function adopt(string $eventId): void
+    {
+        $this->adoptedEventId = $eventId;
     }
 
     public function revise(
@@ -179,6 +197,7 @@ class PollOption
             'startsAt' => $this->startsAt?->format('H:i'),
             'endsAt' => $this->endsAt?->format('H:i'),
             'revision' => $this->revision,
+            'adoptedEventId' => $this->adoptedEventId,
         ];
     }
 

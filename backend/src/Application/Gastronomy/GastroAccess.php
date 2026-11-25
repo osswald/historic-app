@@ -12,7 +12,7 @@ final class GastroAccess
 {
     public function canEdit(MemberUser $actor, ?GastroPlan $plan): bool
     {
-        if ($actor->isGastro()) {
+        if ($actor->isAdmin() || $actor->isGastro()) {
             return true;
         }
         if (!$plan instanceof GastroPlan) {
@@ -30,7 +30,7 @@ final class GastroAccess
     public function assertCanEdit(MemberUser $actor, ?GastroPlan $plan): void
     {
         if (!$this->canEdit($actor, $plan)) {
-            throw new AccessDeniedException('Die Gastronomie bearbeiten das Gastro-Team und die benannten Verantwortlichen.');
+            throw new AccessDeniedException('Die Gastronomie bearbeiten Administratoren, das Gastro-Team und die benannten Verantwortlichen.');
         }
     }
 }

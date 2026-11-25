@@ -66,9 +66,11 @@ final class PollController extends ApiController
     public function adopt(string $id, Request $request, AdoptPoll $adopt, EventPresenter $presenter): Response
     {
         $user = $this->member();
-        $event = $adopt($user, $id, $this->payload($request));
+        $events = $adopt($user, $id, $this->payload($request));
 
-        return $this->jsonData($presenter->detail($event, $user), Response::HTTP_CREATED);
+        return $this->jsonData([
+            'events' => array_map(fn ($event): array => $presenter->detail($event, $user), $events),
+        ], Response::HTTP_CREATED);
     }
 
     /** @return array<string, mixed> */

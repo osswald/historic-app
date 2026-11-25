@@ -12,6 +12,7 @@ export type DayOffset = -1 | 0 | 1
 export type StationChoice = {
   didokCode: string
   name: string
+  abbreviation?: string | null
 }
 
 export type StationHit = StationChoice & {
@@ -28,6 +29,7 @@ export type RideVehicle = {
   name: string | null
   number: string | null
   label: string
+  external: boolean
 }
 
 export type OwnVehicleOption = {
@@ -53,11 +55,33 @@ export type Ride = {
   internalNote: string | null
 }
 
+export type EventVehicle = {
+  vehicleId: string
+  name: string
+  number: string | null
+  label: string
+  external: boolean
+  status: VehicleStatus
+  statusLabel: string
+  rentalStatus: string | null
+}
+
+export type FleetOption = {
+  id: string
+  name: string
+  number: string | null
+  label: string
+  external: boolean
+  status: VehicleStatus
+  statusLabel: string
+}
+
 export type RidePlan = {
   canEdit: boolean
   warnings: string[]
   rides: Ride[]
-  ownVehicles: OwnVehicleOption[]
+  eventVehicles: EventVehicle[]
+  fleet: FleetOption[]
 }
 
 export type GastroDish = {
@@ -73,9 +97,31 @@ export type GastroResponsible = {
 
 export type GastroPlan = {
   id: string
+  eventId?: string
+  guestCount: number | null
   notes: string | null
   dishes: GastroDish[]
   responsible: GastroResponsible[]
+}
+
+export type GastroOverviewRow = {
+  eventId: string
+  title: string
+  status: string
+  statusLabel: string
+  hasPlan: boolean
+  planId: string | null
+  guestCount: number | null
+  dishes: string[]
+}
+
+export type AuditEntry = {
+  id: string
+  occurredAt: string
+  actor: string
+  action: string
+  actionLabel: string
+  summary: string
 }
 
 export type GastroView = {
@@ -108,8 +154,15 @@ export type FleetVehicle = {
   label: string
   status: VehicleStatus
   statusLabel: string
+  external: boolean
   technicalNote?: string | null
   tracksMotorHours?: boolean
+  owner?: string | null
+  nvr?: string | null
+  p1On?: string | null
+  p5On?: string | null
+  oilOn?: string | null
+  nextMaintenanceOn?: string | null
   batteryCharges?: BatteryCharge[]
   meterReadings?: MeterReading[]
 }
@@ -117,6 +170,7 @@ export type FleetVehicle = {
 export type FleetList = {
   canEdit: boolean
   canViewTechnical: boolean
+  canRecordBattery: boolean
   vehicles: FleetVehicle[]
 }
 
@@ -143,14 +197,21 @@ export type DayResponse = {
   comment: string | null
 }
 
+export type MeetingPoint = {
+  id: string
+  placeId: string
+  placeName: string
+  meetsAt: string | null
+  description: string | null
+}
+
 export type EventDay = {
   id: string
   date: string
   startsAt: string | null
   endsAt: string | null
   location: string | null
-  meetingPointName: string | null
-  meetingPointDescription: string | null
+  meetingPoints: MeetingPoint[]
   line1: string
   myResponse: Answer | null
   myComment: string | null
@@ -170,6 +231,7 @@ export type ClubEvent = {
   publicDescription: string | null
   location: string | null
   publishToWebsite: boolean
+  vehicles: EventVehicle[]
   eyebrow: string
   card: EventCard | null
   days: EventDay[]
@@ -200,6 +262,10 @@ export type PollOption = {
   yesCount: number
   noCount: number
   yesNames: string[]
+  noNames: string[]
+  yesAnswers: Array<{ name: string; comment: string | null }>
+  noAnswers: Array<{ name: string; comment: string | null }>
+  adoptedEventId: string | null
 }
 
 export type PollDay = {

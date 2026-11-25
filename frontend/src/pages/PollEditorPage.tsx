@@ -3,9 +3,9 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { Daypart, PollDetail } from '../api/types'
 
-type SlotDraft = { id?: string; on: boolean }
+type SlotDraft = { id?: string; on: boolean; adoptedEventId?: string | null }
 type DepotDay = { key: string; date: string; morning: SlotDraft; afternoon: SlotDraft; evening: SlotDraft }
-type NormalOption = { key: string; id?: string; date: string; startsAt: string; endsAt: string }
+type NormalOption = { key: string; id?: string; date: string; startsAt: string; endsAt: string; adoptedEventId?: string | null }
 
 const EMPTY_SLOT: SlotDraft = { on: true }
 const MONTH_NAMES = [
@@ -51,7 +51,7 @@ function monthTitle(yearMonth: string): string {
 
 function fillDepotMonth(yearMonth: string, existing: DepotDay[]): DepotDay[] {
   const byDate = new Map(existing.filter((day) => day.date !== '').map((day) => [day.date, day]))
-  return datesInMonth(yearMonth).map((date) => {
+  const filled = datesInMonth(yearMonth).map((date) => {
     const previous = byDate.get(date)
     if (previous) {
       return {
@@ -69,6 +69,13 @@ function fillDepotMonth(yearMonth: string, existing: DepotDay[]): DepotDay[] {
       evening: { ...EMPTY_SLOT },
     }
   })
+  const covered = new Set(filled.map((day) => day.date))
+  const lockedElsewhere = existing.filter((day) => day.date !== '' && !covered.has(day.date) && dayIsLocked(day))
+  return [...filled, ...lockedElsewhere]
+}
+
+function dayIsLocked(day: DepotDay): boolean {
+  return Boolean(day.morning.adoptedEventId || day.afternoon.adoptedEventId || day.evening.adoptedEventId)
 }
 
 export function PollEditorPage() {
@@ -117,6 +124,7 @@ export function PollEditorPage() {
           date: option.date,
           startsAt: option.startsAt ?? '',
           endsAt: option.endsAt ?? '',
+          adoptedEventId: option.adoptedEventId,
         })))
       }
     }).catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Umfrage konnte nicht geladen werden.'))
@@ -142,7 +150,7 @@ export function PollEditorPage() {
     const options = kind === 'depot'
       ? depotDays.flatMap((day) => (['morning', 'afternoon', 'evening'] as const).flatMap((daypart) => {
           const slot = day[daypart]
-          if (!slot.on && !slot.id) return []
+          if (slot.adoptedEventId) return [{ id: slot.id, date: day.date, daypart, startsAt: '', endsAt: '' }]
           if (!slot.on) return []
           return [{ id: slot.id, date: day.date, daypart, startsAt: '', endsAt: '' }]
         }))
@@ -263,6 +271,7 @@ export function PollEditorPage() {
                             aria-label={`Datum Tag ${index + 1}`}
                             className="input"
                             type="date"
+                            disabled={dayIsLocked(day)}
                             value={day.date}
                             onChange={(event) => setDepotDays((current) => current.map((item) => item.key === day.key ? { ...item, date: event.target.value } : item))}
                           />
@@ -272,7 +281,8 @@ export function PollEditorPage() {
                           {(['morning', 'afternoon', 'evening'] as const).map((daypart) => (
                             <label className="toggle" key={daypart}>
                               <input
-                                checked={day[daypart].on}
+                                checked={day[daypart].adoptedEventId ? true : day[daypart].on}
+                                disabled={Boolean(day[daypart].adoptedEventId)}
                                 type="checkbox"
                                 onChange={() => setDepotDays((current) => current.map((item) => item.key === day.key ? { ...item, [daypart]: { ...item[daypart], on: !item[daypart].on } } : item))}
                               />
@@ -280,7 +290,7 @@ export function PollEditorPage() {
                             </label>
                           ))}
                         </div>
-                        {depotDays.length > 1 ? (
+                        {depotDays.length > 1 && !dayIsLocked(day) ? (
                           <button className="btn small light" type="button" onClick={() => setDepotDays((current) => current.filter((item) => item.key !== day.key))}>
                             Entfernen
                           </button>
@@ -293,17 +303,18 @@ export function PollEditorPage() {
                     <h3>Termin {index + 1}</h3>
                     <div className="formrow cols2">
                       <Field error={errors[`options.${index}.date`]} label="Datum">
-                        <input className="input" type="date" value={option.date} onChange={(event) => setNormalOptions((current) => current.map((item) => item.key === option.key ? { ...item, date: event.target.value } : item))} />
+                        <input className="input" disabled={Boolean(option.adoptedEventId)} type="date" value={option.date} onChange={(event) => setNormalOptions((current) => current.map((item) => item.key === option.key ? { ...item, date: event.target.value } : item))} />
                       </Field>
                       <Field label="Zeit">
                         <div className="toolbar">
-                          <input aria-label="Beginn" className="input" type="time" value={option.startsAt} onChange={(event) => setNormalOptions((current) => current.map((item) => item.key === option.key ? { ...item, startsAt: event.target.value } : item))} />
-                          <input aria-label="Ende" className="input" type="time" value={option.endsAt} onChange={(event) => setNormalOptions((current) => current.map((item) => item.key === option.key ? { ...item, endsAt: event.target.value } : item))} />
+                          <input aria-label="Beginn" className="input" disabled={Boolean(option.adoptedEventId)} type="time" value={option.startsAt} onChange={(event) => setNormalOptions((current) => current.map((item) => item.key === option.key ? { ...item, startsAt: event.target.value } : item))} />
+                          <input aria-label="Ende" className="input" disabled={Boolean(option.adoptedEventId)} type="time" value={option.endsAt} onChange={(event) => setNormalOptions((current) => current.map((item) => item.key === option.key ? { ...item, endsAt: event.target.value } : item))} />
                         </div>
                       </Field>
                     </div>
                     {errors[`options.${index}.endsAt`] ? <div className="field-error">{errors[`options.${index}.endsAt`]}</div> : null}
-                    {normalOptions.length > 1 ? <button className="btn small light" type="button" onClick={() => setNormalOptions((current) => current.filter((item) => item.key !== option.key))}>Termin entfernen</button> : null}
+                    {option.adoptedEventId ? <p className="muted">Dieser Vorschlag ist übernommen und gesperrt.</p> : null}
+                    {normalOptions.length > 1 && !option.adoptedEventId ? <button className="btn small light" type="button" onClick={() => setNormalOptions((current) => current.filter((item) => item.key !== option.key))}>Termin entfernen</button> : null}
                   </div>
                 ))}
                 <button className="btn light" type="button" onClick={() => kind === 'depot' ? setDepotDays((current) => [...current, blankDepotDay()]) : setNormalOptions((current) => [...current, blankNormal()])}>
@@ -315,7 +326,7 @@ export function PollEditorPage() {
           <div className="panel">
             <div className="panel-head"><h2>Übernahme</h2></div>
             <div className="panel-inner">
-              <div className="note">Eine Umfrage kann wieder geöffnet werden. Aus ihr entsteht höchstens eine Veranstaltung, und deren Zusagen sind neu. Eine geänderte Option macht die alte Stimme ungültig.</div>
+              <div className="note">Jeder Vorschlag kann einzeln als Entwurf oder veröffentlicht übernommen werden. Übernommene Vorschläge bleiben gesperrt, die übrigen bleiben änderbar. Antworten bleiben möglich, bis die Umfrage geschlossen wird. Die Antwortfrist sperrt das Speichern nicht.</div>
             </div>
           </div>
         </div>
@@ -326,7 +337,7 @@ export function PollEditorPage() {
 
 function slotFrom(options: PollDetail['options'], daypart: Daypart): SlotDraft {
   const option = options.find((item) => item.daypart === daypart)
-  return option ? { id: option.id, on: true } : { on: false }
+  return option ? { id: option.id, on: true, adoptedEventId: option.adoptedEventId } : { on: false }
 }
 
 function Field({ label, error, children }: { label?: string; error?: string; children: ReactNode }) {

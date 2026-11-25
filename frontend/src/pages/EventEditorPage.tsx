@@ -1,7 +1,14 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
-import type { ClubEvent } from '../api/types'
+import type { ClubEvent, FleetList } from '../api/types'
+
+type MeetingDraft = {
+  key: string
+  placeName: string
+  meetsAt: string
+  description: string
+}
 
 type DayDraft = {
   key: string
@@ -10,12 +17,21 @@ type DayDraft = {
   startsAt: string
   endsAt: string
   location: string
-  meetingPointName: string
-  meetingPointDescription: string
+  meetingPoints: MeetingDraft[]
+}
+
+type VehicleDraft = {
+  key: string
+  vehicleId: string
+  rentalStatus: string
+}
+
+function blankMeeting(): MeetingDraft {
+  return { key: crypto.randomUUID(), placeName: '', meetsAt: '', description: '' }
 }
 
 function blankDay(): DayDraft {
-  return { key: crypto.randomUUID(), date: '', startsAt: '', endsAt: '', location: '', meetingPointName: '', meetingPointDescription: '' }
+  return { key: crypto.randomUUID(), date: '', startsAt: '', endsAt: '', location: '', meetingPoints: [] }
 }
 
 export function EventEditorPage() {
@@ -30,6 +46,10 @@ export function EventEditorPage() {
   const [publicDescription, setPublicDescription] = useState('')
   const [publishToWebsite, setPublishToWebsite] = useState(false)
   const [days, setDays] = useState<DayDraft[]>([blankDay()])
+  const [places, setPlaces] = useState<string[]>([])
+  const [fleet, setFleet] = useState<FleetList['vehicles']>([])
+  const [fleetReady, setFleetReady] = useState(false)
+  const [vehicles, setVehicles] = useState<VehicleDraft[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -51,11 +71,32 @@ export function EventEditorPage() {
         startsAt: day.startsAt ?? '',
         endsAt: day.endsAt ?? '',
         location: day.location ?? '',
-        meetingPointName: day.meetingPointName ?? '',
-        meetingPointDescription: day.meetingPointDescription ?? '',
+        meetingPoints: day.meetingPoints.map((point) => ({
+          key: point.id,
+          placeName: point.placeName,
+          meetsAt: point.meetsAt ?? '',
+          description: point.description ?? '',
+        })),
+      })))
+      setVehicles((event.vehicles ?? []).map((vehicle) => ({
+        key: vehicle.vehicleId,
+        vehicleId: vehicle.vehicleId,
+        rentalStatus: vehicle.rentalStatus ?? '',
       })))
     }).catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Veranstaltung konnte nicht geladen werden.'))
   }, [id])
+
+  useEffect(() => {
+    api<{ places: Array<{ name: string }> }>('/api/v1/places')
+      .then((body) => setPlaces(body.places.map((place) => place.name)))
+      .catch(() => setPlaces([]))
+    api<FleetList>('/api/v1/vehicles')
+      .then((body) => {
+        setFleet(body.vehicles)
+        setFleetReady(true)
+      })
+      .catch(() => setFleetReady(false))
+  }, [])
 
   function toggleClub(club: 'historic' | 'supporter') {
     setClubs((current) => current.includes(club) ? current.filter((item) => item !== club) : [...current, club])
@@ -63,6 +104,13 @@ export function EventEditorPage() {
 
   function updateDay(key: string, patch: Partial<DayDraft>) {
     setDays((current) => current.map((day) => day.key === key ? { ...day, ...patch } : day))
+  }
+
+  function updateMeeting(dayKey: string, pointKey: string, patch: Partial<MeetingDraft>) {
+    setDays((current) => current.map((day) => day.key === dayKey ? {
+      ...day,
+      meetingPoints: day.meetingPoints.map((point) => point.key === pointKey ? { ...point, ...patch } : point),
+    } : day))
   }
 
   async function save(event: FormEvent) {
@@ -84,9 +132,22 @@ export function EventEditorPage() {
         startsAt: day.startsAt,
         endsAt: day.endsAt,
         location: day.location,
-        meetingPointName: day.meetingPointName,
-        meetingPointDescription: day.meetingPointDescription,
+        meetingPoints: day.meetingPoints
+          .filter((point) => point.placeName.trim() !== '' || point.meetsAt !== '' || point.description.trim() !== '')
+          .map((point) => ({
+            placeName: point.placeName,
+            meetsAt: point.meetsAt,
+            description: point.description,
+          })),
       })),
+      ...(fleetReady ? {
+        vehicles: vehicles
+          .filter((vehicle) => vehicle.vehicleId !== '')
+          .map((vehicle) => ({
+            vehicleId: vehicle.vehicleId,
+            rentalStatus: vehicle.rentalStatus,
+          })),
+      } : {}),
     }
     try {
       const saved = await api<ClubEvent>(editing ? `/api/v1/events/${id}` : '/api/v1/events', {
@@ -179,18 +240,60 @@ export function EventEditorPage() {
                       </Field>
                     </div>
                     <Field label="Ort">
-                      <input className="input" value={day.location} onChange={(event) => updateDay(day.key, { location: event.target.value })} />
+                      <input className="input" list="place-directory" value={day.location} onChange={(event) => updateDay(day.key, { location: event.target.value })} />
                     </Field>
-                    <Field label="Treffpunkt">
-                      <input className="input" value={day.meetingPointName} onChange={(event) => updateDay(day.key, { meetingPointName: event.target.value })} />
-                    </Field>
-                    <Field label="Hinweis zum Treffpunkt">
-                      <input className="input" value={day.meetingPointDescription} onChange={(event) => updateDay(day.key, { meetingPointDescription: event.target.value })} />
-                    </Field>
+                    <div className="formfield">
+                      <label>Treffpunkte</label>
+                      {day.meetingPoints.map((point, pointIndex) => (
+                        <div key={point.key}>
+                          <div className="vehicle-line">
+                            <input aria-label={`Treffpunkt ${pointIndex + 1}`} className="input" list="place-directory" placeholder="Ort" value={point.placeName} onChange={(event) => updateMeeting(day.key, point.key, { placeName: event.target.value })} />
+                            <input aria-label={`Uhrzeit Treffpunkt ${pointIndex + 1}`} className="input" type="time" value={point.meetsAt} onChange={(event) => updateMeeting(day.key, point.key, { meetsAt: event.target.value })} />
+                            <button className="btn small light" type="button" onClick={() => updateDay(day.key, { meetingPoints: day.meetingPoints.filter((item) => item.key !== point.key) })}>Entfernen</button>
+                          </div>
+                          <input aria-label={`Hinweis Treffpunkt ${pointIndex + 1}`} className="input" placeholder="Hinweis" style={{ marginTop: 6 }} value={point.description} onChange={(event) => updateMeeting(day.key, point.key, { description: event.target.value })} />
+                          {errors[`days.${index}.meetingPoints.${pointIndex}.placeName`] || errors[`days.${index}.meetingPoints.${pointIndex}.meetsAt`] ? (
+                            <div className="field-error">{errors[`days.${index}.meetingPoints.${pointIndex}.placeName`] ?? errors[`days.${index}.meetingPoints.${pointIndex}.meetsAt`]}</div>
+                          ) : null}
+                        </div>
+                      ))}
+                      <button className="btn small light" type="button" onClick={() => updateDay(day.key, { meetingPoints: [...day.meetingPoints, blankMeeting()] })}>Treffpunkt hinzufügen</button>
+                    </div>
                     {days.length > 1 ? <button className="btn small light" type="button" onClick={() => setDays((current) => current.filter((item) => item.key !== day.key))}>Tag entfernen</button> : null}
                   </div>
                 ))}
                 <button className="btn light" type="button" onClick={() => setDays((current) => [...current, blankDay()])}>Weiteren Tag hinzufügen</button>
+                <datalist id="place-directory">
+                  {places.map((place) => <option key={place} value={place} />)}
+                </datalist>
+              </div>
+            </div>
+            <div className="panel">
+              <div className="panel-head"><h2>Fahrzeugliste</h2></div>
+              <div className="panel-inner">
+                <div className="note">Die Fahrten verwenden später eine Teilmenge dieser Liste. Externe Fahrzeuge sind Stammdaten und können je Anlass einen Mietstatus tragen.</div>
+                {errors.vehicles ? <div className="field-error">{errors.vehicles}</div> : null}
+                {vehicles.map((vehicle, index) => {
+                  const chosen = fleet.find((item) => item.id === vehicle.vehicleId)
+                  return (
+                    <div key={vehicle.key}>
+                      <div className="vehicle-line">
+                        <select className="input" value={vehicle.vehicleId} onChange={(event) => setVehicles((current) => current.map((item) => item.key === vehicle.key ? { ...item, vehicleId: event.target.value } : item))}>
+                          <option value="">Fahrzeug wählen</option>
+                          {fleet.map((item) => <option key={item.id} value={item.id}>{item.label}{item.external ? ' · Extern' : ''}</option>)}
+                        </select>
+                        {chosen?.external ? (
+                          <input aria-label="Mietstatus" className="input" placeholder="Mietstatus" value={vehicle.rentalStatus} onChange={(event) => setVehicles((current) => current.map((item) => item.key === vehicle.key ? { ...item, rentalStatus: event.target.value } : item))} />
+                        ) : null}
+                        <button className="btn small light" type="button" onClick={() => setVehicles((current) => current.filter((item) => item.key !== vehicle.key))}>Entfernen</button>
+                      </div>
+                      {errors[`vehicles.${index}.vehicleId`] || errors[`vehicles.${index}.rentalStatus`] ? (
+                        <div className="field-error">{errors[`vehicles.${index}.vehicleId`] ?? errors[`vehicles.${index}.rentalStatus`]}</div>
+                      ) : null}
+                    </div>
+                  )
+                })}
+                <button className="btn small light" type="button" onClick={() => setVehicles((current) => [...current, { key: crypto.randomUUID(), vehicleId: '', rentalStatus: '' }])}>Fahrzeug hinzufügen</button>
               </div>
             </div>
           </div>

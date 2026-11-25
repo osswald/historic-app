@@ -30,9 +30,6 @@ final class RecordPollAnswer
         if ($poll->status()->value === 'closed') {
             throw new InvalidRequest(['status' => 'Diese Umfrage ist geschlossen.'], 'Diese Umfrage ist geschlossen.');
         }
-        if ($poll->deadlinePassed($now)) {
-            throw new InvalidRequest(['deadline' => 'Die Antwortfrist ist abgelaufen.'], 'Die Antwortfrist ist abgelaufen.');
-        }
 
         $incoming = [];
         foreach ((array) ($payload['votes'] ?? []) as $row) {
@@ -42,7 +39,10 @@ final class RecordPollAnswer
             $optionId = trim((string) ($row['optionId'] ?? ''));
             $answer = Attendance::tryFrom((string) ($row['answer'] ?? ''));
             if ($optionId === '' || !$answer instanceof Attendance) {
-                throw new InvalidRequest(['votes' => 'Bitte jede Option mit Ja oder Nein beantworten.']);
+                throw new InvalidRequest(['votes' => 'Bitte jede markierte Option mit Ja oder Nein beantworten.']);
+            }
+            if (isset($incoming[$optionId])) {
+                throw new InvalidRequest(['votes' => 'Bitte jede Option nur einmal beantworten.']);
             }
             $incoming[$optionId] = $answer;
         }
@@ -51,13 +51,15 @@ final class RecordPollAnswer
         if ($options === []) {
             throw new InvalidRequest(['options' => 'Diese Umfrage hat keine Optionen.']);
         }
-        foreach ($options as $option) {
-            if (!isset($incoming[$option->id()])) {
-                throw new InvalidRequest(['votes' => 'Bitte jede Option mit Ja oder Nein beantworten.']);
+        foreach ($incoming as $optionId => $answer) {
+            if ($poll->option($optionId) === null) {
+                throw new InvalidRequest(['votes' => 'Bitte nur Optionen dieser Umfrage beantworten.']);
             }
         }
-        if (count($incoming) !== count($options)) {
-            throw new InvalidRequest(['votes' => 'Bitte nur Optionen dieser Umfrage beantworten.']);
+        foreach ($options as $option) {
+            if (!isset($incoming[$option->id()])) {
+                $incoming[$option->id()] = Attendance::No;
+            }
         }
 
         $comment = trim((string) ($payload['comment'] ?? ''));

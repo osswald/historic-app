@@ -66,7 +66,7 @@ final class MemberUser implements UserInterface
 
     public function canPlanRides(): bool
     {
-        return $this->isOrganizer() || $this->isRidePlanner();
+        return $this->isAdmin() || $this->isRidePlanner();
     }
 
     public function isFleet(): bool

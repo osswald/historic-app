@@ -60,4 +60,46 @@ class AuditEntry
         $this->afterData = $afterData;
         $this->occurredAt = $occurredAt;
     }
+
+    public function id(): string
+    {
+        return $this->id;
+    }
+
+    public function actorSub(): string
+    {
+        return $this->actorSub;
+    }
+
+    public function entityType(): string
+    {
+        return $this->entityType;
+    }
+
+    public function entityId(): string
+    {
+        return $this->entityId;
+    }
+
+    public function action(): string
+    {
+        return $this->action;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function beforeData(): ?array
+    {
+        return $this->beforeData;
+    }
+
+    /** @return array<string, mixed>|null */
+    public function afterData(): ?array
+    {
+        return $this->afterData;
+    }
+
+    public function occurredAt(): \DateTimeImmutable
+    {
+        return $this->occurredAt;
+    }
 }

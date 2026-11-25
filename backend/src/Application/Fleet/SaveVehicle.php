@@ -39,6 +39,14 @@ final class SaveVehicle
             $input['tracksMotorHours'],
             count($this->vehicles->all()),
             $now,
+            null,
+            $input['external'],
+            $input['owner'],
+            $input['nvr'],
+            $input['p1On'],
+            $input['p5On'],
+            $input['oilOn'],
+            $input['nextMaintenanceOn'],
         );
         $this->vehicles->add($vehicle);
         $this->audit->record($actor->getUserIdentifier(), 'vehicle', $vehicle->id(), 'create', null, $vehicle->toAudit(), $now);
@@ -64,6 +72,13 @@ final class SaveVehicle
             $input['status'],
             $input['technicalNote'],
             $input['tracksMotorHours'],
+            $input['external'],
+            $input['owner'],
+            $input['nvr'],
+            $input['p1On'],
+            $input['p5On'],
+            $input['oilOn'],
+            $input['nextMaintenanceOn'],
             $now,
         );
         $this->audit->record($actor->getUserIdentifier(), 'vehicle', $vehicle->id(), 'update', $before, $vehicle->toAudit(), $now);
@@ -81,7 +96,20 @@ final class SaveVehicle
 
     /**
      * @param array<string, mixed> $payload
-     * @return array{name: string, number: ?string, status: VehicleStatus, technicalNote: ?string, tracksMotorHours: bool}
+     * @return array{
+     *     name: string,
+     *     number: ?string,
+     *     status: VehicleStatus,
+     *     technicalNote: ?string,
+     *     tracksMotorHours: bool,
+     *     external: bool,
+     *     owner: ?string,
+     *     nvr: ?string,
+     *     p1On: ?\DateTimeImmutable,
+     *     p5On: ?\DateTimeImmutable,
+     *     oilOn: ?\DateTimeImmutable,
+     *     nextMaintenanceOn: ?\DateTimeImmutable
+     * }
      */
     private function normalize(array $payload): array
     {
@@ -103,6 +131,21 @@ final class SaveVehicle
         if (mb_strlen($note) > 4000) {
             $errors['technicalNote'] = 'Die technische Notiz darf höchstens 4000 Zeichen haben.';
         }
+        if (($status === VehicleStatus::Limited || $status === VehicleStatus::Blocked) && $note === '') {
+            $errors['technicalNote'] = 'Bitte bei Eingeschränkt und Gesperrt einen Grund angeben.';
+        }
+        $owner = trim((string) ($payload['owner'] ?? ''));
+        $nvr = trim((string) ($payload['nvr'] ?? ''));
+        if (mb_strlen($owner) > 200) {
+            $errors['owner'] = 'Bitte höchstens 200 Zeichen für den Eigentümerkontakt angeben.';
+        }
+        if (mb_strlen($nvr) > 80) {
+            $errors['nvr'] = 'Bitte höchstens 80 Zeichen für die NVR angeben.';
+        }
+        $p1On = $this->day($payload['p1On'] ?? null, 'p1On', 'P1', $errors);
+        $p5On = $this->day($payload['p5On'] ?? null, 'p5On', 'P5', $errors);
+        $oilOn = $this->day($payload['oilOn'] ?? null, 'oilOn', 'Öl', $errors);
+        $nextMaintenanceOn = $this->day($payload['nextMaintenanceOn'] ?? null, 'nextMaintenanceOn', 'das nächste Wartungsdatum', $errors);
         if ($errors !== []) {
             throw new InvalidRequest($errors);
         }
@@ -113,6 +156,31 @@ final class SaveVehicle
             'status' => $status,
             'technicalNote' => $note !== '' ? $note : null,
             'tracksMotorHours' => $payload['tracksMotorHours'] === true,
+            'external' => ($payload['external'] ?? false) === true,
+            'owner' => $owner !== '' ? $owner : null,
+            'nvr' => $nvr !== '' ? $nvr : null,
+            'p1On' => $p1On,
+            'p5On' => $p5On,
+            'oilOn' => $oilOn,
+            'nextMaintenanceOn' => $nextMaintenanceOn,
         ];
+    }
+
+    /** @param array<string, string> $errors */
+    private function day(mixed $value, string $key, string $label, array &$errors): ?\DateTimeImmutable
+    {
+        $raw = trim((string) $value);
+        if ($raw === '') {
+            return null;
+        }
+        $day = \DateTimeImmutable::createFromFormat('!Y-m-d', $raw);
+        $parsed = \DateTimeImmutable::getLastErrors();
+        if (!$day instanceof \DateTimeImmutable || (is_array($parsed) && ($parsed['warning_count'] > 0 || $parsed['error_count'] > 0))) {
+            $errors[$key] = 'Bitte für '.$label.' ein gültiges Datum angeben.';
+
+            return null;
+        }
+
+        return $day;
     }
 }

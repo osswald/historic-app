@@ -29,6 +29,6 @@ final class RideCatalog
             ? $this->overlap->warnings($rides, $this->rides->withOwnVehiclesExcept($event->id()))
             : [];
 
-        return $this->presenter->present($rides, $user, $warnings, $this->vehicles->all());
+        return $this->presenter->present($event, $rides, $user, $warnings, $this->vehicles->all());
     }
 }

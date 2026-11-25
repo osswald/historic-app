@@ -29,6 +29,8 @@ final class GastroPresenter
     {
         return [
             'id' => $plan->id(),
+            'eventId' => $plan->eventId(),
+            'guestCount' => $plan->guestCount(),
             'notes' => $plan->notes(),
             'dishes' => array_map(static fn (GastroDish $dish): array => [
                 'id' => $dish->id(),

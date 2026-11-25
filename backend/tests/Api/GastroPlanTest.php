@@ -89,7 +89,18 @@ final class GastroPlanTest extends ApiTestCase
             self::assertResponseIsSuccessful();
         });
 
-        foreach (['admin', 'Vorstand', 'Mitglieder'] as $group) {
+        $this->withGroups('admin', function (KernelBrowser $client) use ($otherEvent): void {
+            $this->request($client, 'GET', '/api/v1/events/'.$otherEvent.'/gastronomy');
+            self::assertResponseIsSuccessful();
+            self::assertTrue($this->jsonBody($client)['canEdit']);
+            $payload = $this->plan('member|kitchen', 'Küche');
+            $payload['guestCount'] = 48;
+            $this->request($client, 'PUT', '/api/v1/events/'.$otherEvent.'/gastronomy', $payload);
+            self::assertResponseIsSuccessful();
+            self::assertSame(48, $this->jsonBody($client)['plan']['guestCount']);
+        });
+
+        foreach (['Vorstand', 'Mitglieder'] as $group) {
             $this->withGroups($group, function (KernelBrowser $client) use ($otherEvent): void {
                 $this->request($client, 'GET', '/api/v1/events/'.$otherEvent.'/gastronomy');
                 self::assertResponseIsSuccessful();
@@ -99,7 +110,7 @@ final class GastroPlanTest extends ApiTestCase
                 $this->request($client, 'PUT', '/api/v1/events/'.$otherEvent.'/gastronomy', $this->plan('member|kitchen', 'Küche'));
                 self::assertResponseStatusCodeSame(403);
                 self::assertSame(
-                    'Die Gastronomie bearbeiten das Gastro-Team und die benannten Verantwortlichen.',
+                    'Die Gastronomie bearbeiten Administratoren, das Gastro-Team und die benannten Verantwortlichen.',
                     $this->jsonBody($client)['error'],
                 );
             });
@@ -107,7 +118,7 @@ final class GastroPlanTest extends ApiTestCase
 
         $organizer = $this->browser();
         $this->request($organizer, 'GET', '/api/v1/events/'.$otherEvent.'/gastronomy');
-        self::assertSame('Buffet im Speisewagen.', $this->jsonBody($organizer)['plan']['notes']);
+        self::assertSame(48, $this->jsonBody($organizer)['plan']['guestCount']);
     }
 
     public function testInvalidDishesStayUnsaved(): void

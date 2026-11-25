@@ -77,7 +77,7 @@ final class FleetTest extends ApiTestCase
             self::assertSame('12320', $vehicle['number']);
             self::assertSame('ready', $vehicle['status']);
             self::assertArrayNotHasKey('technicalNote', $vehicle);
-            self::assertArrayNotHasKey('batteryCharges', $vehicle);
+            self::assertArrayHasKey('batteryCharges', $vehicle);
             self::assertArrayNotHasKey('meterReadings', $vehicle);
             self::assertArrayNotHasKey('tracksMotorHours', $vehicle);
         });
@@ -153,6 +153,7 @@ final class FleetTest extends ApiTestCase
             $id = $this->jsonBody($client)['id'];
             $payload = $this->vehicle('Be 4/6');
             $payload['status'] = 'blocked';
+            $payload['technicalNote'] = 'Achsbruch.';
             $this->request($client, 'PUT', '/api/v1/vehicles/'.$id, $payload);
             self::assertResponseIsSuccessful();
             self::assertSame('blocked', $this->jsonBody($client)['status']);

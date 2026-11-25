@@ -38,12 +38,12 @@ final class SaveGastroPlan
         $now = $this->clock->now();
         if (!$plan instanceof GastroPlan) {
             $plan = new GastroPlan($event, $now);
-            $plan->replace($input['notes'], $input['dishes'], $input['responsible'], $now);
+            $plan->replace($input['notes'], $input['guestCount'], $input['dishes'], $input['responsible'], $now);
             $this->plans->add($plan);
             $this->audit->record($actor->getUserIdentifier(), 'gastro_plan', $plan->id(), 'create', null, $plan->toAudit(), $now);
         } else {
             $before = $plan->toAudit();
-            $plan->replace($input['notes'], $input['dishes'], $input['responsible'], $now);
+            $plan->replace($input['notes'], $input['guestCount'], $input['dishes'], $input['responsible'], $now);
             $this->audit->record($actor->getUserIdentifier(), 'gastro_plan', $plan->id(), 'update', $before, $plan->toAudit(), $now);
         }
         $this->entityManager->flush();
@@ -53,7 +53,7 @@ final class SaveGastroPlan
 
     /**
      * @param array<string, mixed> $payload
-     * @return array{notes: ?string, dishes: list<array{name: string, portions: int}>, responsible: list<array{sub: string, name: string}>}
+     * @return array{notes: ?string, guestCount: ?int, dishes: list<array{name: string, portions: int}>, responsible: list<array{sub: string, name: string}>}
      */
     private function normalize(array $payload): array
     {
@@ -68,6 +68,7 @@ final class SaveGastroPlan
             $errors['notes'] = 'Die Notiz darf höchstens 4000 Zeichen haben.';
         }
 
+        $guestCount = $this->guestCount($payload['guestCount'] ?? null, $errors);
         $dishes = $this->dishes($payload['dishes'] ?? null, $errors);
         $responsible = $this->responsible($payload['responsible'] ?? null, $errors);
         if ($errors !== []) {
@@ -76,9 +77,28 @@ final class SaveGastroPlan
 
         return [
             'notes' => $notes !== '' ? $notes : null,
+            'guestCount' => $guestCount,
             'dishes' => $dishes,
             'responsible' => $responsible,
         ];
+    }
+
+    /** @param array<string, string> $errors */
+    private function guestCount(mixed $value, array &$errors): ?int
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_string($value) && preg_match('/^\d+$/', $value) === 1) {
+            $value = (int) $value;
+        }
+        if (!is_int($value) || $value < 0 || $value > 100000) {
+            $errors['guestCount'] = 'Bitte die geschätzte Gästezahl als ganze Zahl zwischen 0 und 100000 angeben.';
+
+            return null;
+        }
+
+        return $value;
     }
 
     /**

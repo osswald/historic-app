@@ -229,8 +229,21 @@ final class SavePoll
     private function syncOptions(Poll $poll, array $options): void
     {
         $kept = [];
+        $errors = [];
         foreach ($options as $index => $option) {
             $existing = is_string($option['id']) ? $poll->option($option['id']) : null;
+            if ($existing instanceof PollOption && $existing->isAdopted()) {
+                $changed = $existing->occursOn()->format('Y-m-d') !== $option['date']->format('Y-m-d')
+                    || $existing->daypart() !== $option['daypart']
+                    || $existing->startsAt()?->format('H:i') !== $option['startsAt']?->format('H:i')
+                    || $existing->endsAt()?->format('H:i') !== $option['endsAt']?->format('H:i');
+                if ($changed) {
+                    $errors['options.'.$index] = 'Ein übernommener Vorschlag ist gesperrt.';
+                }
+                $existing->revise($existing->occursOn(), $existing->daypart(), $existing->startsAt(), $existing->endsAt(), $index);
+                $kept[] = $existing->id();
+                continue;
+            }
             if ($existing instanceof PollOption) {
                 $existing->revise($option['date'], $option['daypart'], $option['startsAt'], $option['endsAt'], $index);
                 $kept[] = $existing->id();
@@ -238,6 +251,14 @@ final class SavePoll
             }
             $created = $poll->addOption($option['date'], $option['daypart'], $option['startsAt'], $option['endsAt'], $index);
             $kept[] = $created->id();
+        }
+        foreach ($poll->options() as $option) {
+            if ($option->isAdopted() && !in_array($option->id(), $kept, true)) {
+                $errors['options'] = 'Ein übernommener Vorschlag kann nicht entfernt werden.';
+            }
+        }
+        if ($errors !== []) {
+            throw new InvalidRequest($errors);
         }
         $poll->retainOptions($kept);
     }

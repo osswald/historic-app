@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\V1;
 
+use App\Application\Event\CopyEvent;
 use App\Application\Event\EventCatalog;
 use App\Application\Event\EventPresenter;
 use App\Application\Event\RecordAttendance;
@@ -42,6 +43,15 @@ final class EventController extends ApiController
     {
         $user = $this->member();
         $event = $save->create($user, $this->payload($request));
+
+        return $this->jsonData($presenter->detail($event, $user), Response::HTTP_CREATED);
+    }
+
+    #[Route('/api/v1/events/{id}/copy', name: 'api_event_copy', methods: ['POST'])]
+    public function copy(string $id, CopyEvent $copy, EventPresenter $presenter): Response
+    {
+        $user = $this->member();
+        $event = $copy($user, $id);
 
         return $this->jsonData($presenter->detail($event, $user), Response::HTTP_CREATED);
     }
