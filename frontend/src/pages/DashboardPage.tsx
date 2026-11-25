@@ -53,7 +53,6 @@ export function DashboardPage() {
         </div>
         {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu">+ Veranstaltung</Link> : null}
       </div>
-      {member?.canOrganize ? <Link className="btn primary mobile-create" to="/veranstaltungen/neu">+ Veranstaltung</Link> : null}
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="stats">
         <Stat icon="✉" label="Offene Antworten" value={counts?.openResponses ?? '–'} warn />

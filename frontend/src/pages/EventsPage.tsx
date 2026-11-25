@@ -49,7 +49,6 @@ export function EventsPage() {
         </div>
         {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu">+ Veranstaltung planen</Link> : null}
       </div>
-      {member?.canOrganize ? <Link className="btn primary mobile-create" to="/veranstaltungen/neu">+ Veranstaltung planen</Link> : null}
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="toolbar" style={{ marginBottom: 19 }}>
         <input aria-label="Veranstaltungen suchen" className="input" placeholder="Veranstaltungen suchen …" style={{ maxWidth: 355 }} value={query} onChange={(event) => setQuery(event.target.value)} />

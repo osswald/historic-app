@@ -25,7 +25,6 @@ export function PollsPage() {
         </div>
         {member?.canOrganize ? <Link className="btn primary" to="/umfragen/neu">+ Umfrage</Link> : null}
       </div>
-      {member?.canOrganize ? <Link className="btn primary mobile-create" to="/umfragen/neu">+ Umfrage</Link> : null}
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="panel">
         {!polls && !error ? <p className="empty">Wird geladen …</p> : null}
