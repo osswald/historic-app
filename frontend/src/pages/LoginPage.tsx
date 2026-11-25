@@ -1,6 +1,22 @@
+import { useEffect } from 'react'
 import { startDevSession } from '../auth/session'
 
-export function LoginPage({ onLogin }: { onLogin: () => void }) {
+const NOTICES: Record<string, string> = {
+  fehlgeschlagen: 'Die Anmeldung hat nicht geklappt. Bitte versuche es erneut.',
+  'nicht-bereit': 'Die Auth0-Anmeldung ist noch nicht eingerichtet.',
+}
+
+export function LoginPage({ checking = false, onLogin }: { checking?: boolean; onLogin: () => void }) {
+  const notice = NOTICES[new URLSearchParams(window.location.search).get('anmeldung') ?? ''] ?? null
+
+  useEffect(() => {
+    if (!notice) return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('anmeldung')
+    const next = `${url.pathname}${url.search}${url.hash}`
+    window.history.replaceState(null, '', next === '' ? '/' : next)
+  }, [notice])
+
   return (
     <div className="app login-app">
       <header className="top">
@@ -21,9 +37,17 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
         <div className="panel login-card">
           <div className="panel-head"><h2>Anmeldung</h2></div>
           <div className="panel-inner">
-            <p>Die Vereinsplattform ist den Mitgliedern des SBB Historic-Team Winterthur und des Supporterclubs vorbehalten.</p>
-            <p className="muted">Bis die Auth0-Anmeldung eingetragen ist, meldest du dich als Demomitglied an. Danach läuft die Anmeldung über das bestehende Vereinslogin.</p>
-            <button className="btn primary" type="button" onClick={() => { startDevSession(); onLogin() }}>Als Demomitglied weiter</button>
+            {checking ? <p>Wird geladen …</p> : (
+              <>
+                {notice ? <div className="banner-error">{notice}</div> : null}
+                <p>Die Vereinsplattform ist den Mitgliedern des SBB Historic-Team Winterthur und des Supporterclubs vorbehalten.</p>
+                <p className="muted">Die Anmeldung läuft über das Vereinslogin. Die Demo-Anmeldung bleibt vorerst zusätzlich verfügbar.</p>
+                <div className="login-actions">
+                  <a className="btn primary" href="/api/v1/auth/login">Mit Auth0 anmelden</a>
+                  <button className="btn light" type="button" onClick={() => { startDevSession(); onLogin() }}>Als Demomitglied weiter</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,10 +1,19 @@
 # see https://symfony.com/doc/current/reference/configuration/framework.html
+parameters:
+    app.session_cookie: historic_session
+
 framework:
     secret: '%env(APP_SECRET)%'
     default_locale: de
 
-    # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    # Started only when login stores the Auth0 state or the member profile.
+    session:
+        name: '%app.session_cookie%'
+        cookie_secure: auto
+        cookie_httponly: true
+        cookie_samesite: lax
+        cookie_path: /
+        save_path: '%kernel.project_dir%/%env(APP_SHARE_DIR)%/sessions'
 
     #esi: true
     #fragments: true
@@ -14,3 +23,8 @@ when@test:
         test: true
         session:
             storage_factory_id: session.storage.factory.mock_file
+
+when@prod:
+    framework:
+        session:
+            cookie_secure: true

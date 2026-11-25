@@ -32,8 +32,7 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
 
     public function supports(Request $request): ?bool
     {
-        // AUTH_DEV_MODE is the only switch, including on the public host.
-        // Turn it off once Auth0 replaces the temporary demo login.
+        // AUTH_DEV_MODE keeps the demo login beside Auth0, including on the public host.
         if (!$this->enabled) {
             return false;
         }

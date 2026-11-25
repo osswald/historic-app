@@ -17,10 +17,12 @@ security:
             custom_authenticators:
                 - App\Security\DevTokenAuthenticator
                 - App\Security\Auth0JwtAuthenticator
+                - App\Security\MemberSessionAuthenticator
             entry_point: App\Security\ApiEntryPoint
 
     access_control:
         - { path: ^/api/v1/health, roles: PUBLIC_ACCESS }
+        - { path: ^/api/v1/auth/(login|callback|logout)$, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: ROLE_USER }
 
 when@test:

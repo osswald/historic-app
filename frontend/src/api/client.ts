@@ -23,7 +23,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let response: Response
   try {
-    response = await fetch(path, { ...init, headers })
+    response = await fetch(path, { ...init, headers, credentials: 'include' })
   } catch {
     throw new ApiError('Die Plattform ist gerade nicht erreichbar.', 0)
   }

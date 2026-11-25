@@ -19,6 +19,7 @@ describe('api', () => {
     const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
     expect(headers.get('Authorization')).toBe('Bearer dev')
     expect(headers.get('Content-Type')).toBeNull()
+    expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include')
   })
 
   it('sends JSON when the request has a body', async () => {
@@ -30,6 +31,7 @@ describe('api', () => {
     const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
     expect(headers.get('Content-Type')).toBe('application/json')
     expect(headers.has('Authorization')).toBe(false)
+    expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include')
   })
 
   it('reports that the platform cannot be reached', async () => {

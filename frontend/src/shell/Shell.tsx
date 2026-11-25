@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { endSession } from '../auth/session'
+import { endSession, sessionToken } from '../auth/session'
 import { useMember, useToast } from './context'
 
 const ITEMS = [
@@ -42,6 +42,18 @@ export function Shell({ children }: { children: ReactNode }) {
     void navigate(to)
   }
 
+  function logout() {
+    if (sessionToken()) {
+      endSession()
+      return
+    }
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = '/api/v1/auth/logout'
+    document.body.appendChild(form)
+    form.submit()
+  }
+
   return (
     <div className="app">
       <header className="top">
@@ -53,7 +65,7 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="top-actions">
           <a className="public-link" href="https://new.historic-winterthur.ch/" rel="noopener noreferrer" target="_blank">Zur öffentlichen Website ↗</a>
           <button className="ghost desktop-only" type="button" onClick={() => toast('Benachrichtigungen folgen mit der E-Mail- und Push-Anbindung.')}>♧ Benachrichtigungen</button>
-          <button className="avatar" title={name} type="button" onClick={() => endSession()}>{initials(name)}</button>
+          <button aria-label="Abmelden" className="avatar" title={name} type="button" onClick={logout}>{initials(name)}</button>
         </div>
       </header>
       <div className="primary-nav">

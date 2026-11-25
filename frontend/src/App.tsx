@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createBrowserRouter, Outlet, RouterProvider } from 'react-router'
 import { NavigationGuard } from './forms/unsaved'
-import { api } from './api/client'
+import { api, ApiError } from './api/client'
 import type { Member } from './api/types'
 import { sessionToken } from './auth/session'
 import { CalendarPage } from './pages/CalendarPage'
@@ -48,7 +48,8 @@ function ShellLayout() {
 }
 
 export default function App() {
-  const [authed, setAuthed] = useState(() => sessionToken() !== null)
+  const [authed, setAuthed] = useState<boolean | null>(() => (sessionToken() ? true : null))
+  const [generation, setGeneration] = useState(0)
   const [member, setMember] = useState<Member | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -62,9 +63,23 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (!authed) return
-    api<Member>('/api/v1/me').then(setMember).catch(() => setMember(null))
-  }, [authed])
+    let cancelled = false
+    api<Member>('/api/v1/me')
+      .then((profile) => {
+        if (cancelled) return
+        setMember(profile)
+        setAuthed(true)
+      })
+      .catch((reason: unknown) => {
+        if (cancelled) return
+        setMember(null)
+        if (reason instanceof ApiError && reason.status !== 401 && sessionToken()) return
+        setAuthed(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [generation])
 
   useEffect(() => {
     if (!toast) return
@@ -72,8 +87,8 @@ export default function App() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
-  if (!authed) {
-    return <LoginPage onLogin={() => setAuthed(true)} />
+  if (authed !== true) {
+    return <LoginPage checking={authed === null} onLogin={() => { setAuthed(true); setGeneration((value) => value + 1) }} />
   }
 
   return (

@@ -29,6 +29,8 @@ foreach ([
     'DEV_USER_NAME' => 'Demo Mitglied',
     'DEV_USER_GROUPS' => 'admin,Mitglieder',
     'AUTH0_DOMAIN' => '',
+    'AUTH0_CLIENT_ID' => '',
+    'AUTH0_CLIENT_SECRET' => '',
     'AUTH0_AUDIENCE' => '',
     'AUTH0_GROUPS_CLAIM' => 'https://historic-winterthur.ch/groups',
     'CORS_ALLOW_ORIGIN' => '^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$',

@@ -24,6 +24,10 @@
         <env name="DEV_USER_GROUPS" value="admin,Mitglieder" force="true" />
         <server name="AUTH0_DOMAIN" value="" force="true" />
         <env name="AUTH0_DOMAIN" value="" force="true" />
+        <server name="AUTH0_CLIENT_ID" value="" force="true" />
+        <env name="AUTH0_CLIENT_ID" value="" force="true" />
+        <server name="AUTH0_CLIENT_SECRET" value="" force="true" />
+        <env name="AUTH0_CLIENT_SECRET" value="" force="true" />
         <server name="AUTH0_AUDIENCE" value="" force="true" />
         <env name="AUTH0_AUDIENCE" value="" force="true" />
         <server name="AUTH0_GROUPS_CLAIM" value="https://historic-winterthur.ch/groups" force="true" />

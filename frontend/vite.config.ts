@@ -7,7 +7,12 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
+      // Keep the browser Host so Symfony builds the Auth0 redirect URI
+      // for 127.0.0.1:5173 locally and for the public host in production.
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: false,
+      },
     },
   },
 })
