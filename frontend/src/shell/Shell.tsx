@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { endSession, sessionToken } from '../auth/session'
 import { useMember, useToast } from './context'
@@ -34,8 +34,15 @@ export function Shell({ children }: { children: ReactNode }) {
   const member = useMember()
   const toast = useToast()
   const [more, setMore] = useState(false)
+  const [photoFailed, setPhotoFailed] = useState(false)
   const active = current(location.pathname)
   const name = member?.displayName ?? 'Mitglied'
+  const picture = member?.picture
+  const photoUrl = typeof picture === 'string' && picture.startsWith('https://') && !photoFailed ? picture : null
+
+  useEffect(() => {
+    setPhotoFailed(false)
+  }, [picture])
 
   function go(to: string) {
     setMore(false)
@@ -65,7 +72,9 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="top-actions">
           <a className="public-link" href="https://new.historic-winterthur.ch/" rel="noopener noreferrer" target="_blank">Zur öffentlichen Website ↗</a>
           <button className="ghost desktop-only" type="button" onClick={() => toast('Benachrichtigungen folgen mit der E-Mail- und Push-Anbindung.')}>♧ Benachrichtigungen</button>
-          <button aria-label="Abmelden" className="avatar" title={name} type="button" onClick={logout}>{initials(name)}</button>
+          <button aria-label="Abmelden" className={photoUrl ? 'avatar has-photo' : 'avatar'} title={name} type="button" onClick={logout}>
+            {photoUrl ? <img alt={name} src={photoUrl} onError={() => setPhotoFailed(true)} /> : initials(name)}
+          </button>
         </div>
       </header>
       <div className="primary-nav">

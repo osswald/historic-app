@@ -5,6 +5,7 @@ export type Member = {
   canOrganize: boolean
   canPlanRides: boolean
   canEditFleet: boolean
+  picture?: string
 }
 
 export type DayOffset = -1 | 0 | 1

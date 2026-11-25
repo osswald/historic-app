@@ -52,7 +52,12 @@ final class Auth0Claims
             throw new Auth0TokenException('Token ungültig.');
         }
 
-        return new MemberUser($sub, $this->name($access, $id, $sub), $this->groups($access, $groupsClaim));
+        $groups = $this->groups($access, $groupsClaim);
+        if ($groups === [] && $id instanceof \stdClass) {
+            $groups = $this->groups($id, $groupsClaim);
+        }
+
+        return new MemberUser($sub, $this->name($access, $id, $sub), $groups, $this->picture($access, $id));
     }
 
     /** @return list<string> */
@@ -79,6 +84,58 @@ final class Auth0Claims
         }
 
         return array_values(array_unique($names));
+    }
+
+    private function picture(\stdClass $access, ?\stdClass $id): ?string
+    {
+        foreach ([$id, $access] as $token) {
+            if (!$token instanceof \stdClass) {
+                continue;
+            }
+            $url = MemberUser::normalizePicture($token->picture ?? null);
+            if ($url !== null) {
+                return $url;
+            }
+        }
+        foreach ([$id, $access] as $token) {
+            if (!$token instanceof \stdClass) {
+                continue;
+            }
+            $url = MemberUser::normalizePicture($token->{'https://historic-winterthur.ch/picture'} ?? null);
+            if ($url !== null) {
+                return $url;
+            }
+        }
+        foreach ([$id, $access] as $token) {
+            if (!$token instanceof \stdClass) {
+                continue;
+            }
+            $url = $this->metadataPicture($token);
+            if ($url !== null) {
+                return $url;
+            }
+        }
+
+        return null;
+    }
+
+    private function metadataPicture(\stdClass $token): ?string
+    {
+        $meta = $token->app_metadata ?? null;
+        if (!$meta instanceof \stdClass) {
+            return null;
+        }
+        $club = $meta->historic_winterthur ?? null;
+        if ($club instanceof \stdClass) {
+            foreach (['picture', 'profilbild', 'avatar', 'profile_picture'] as $key) {
+                $url = MemberUser::normalizePicture($club->{$key} ?? null);
+                if ($url !== null) {
+                    return $url;
+                }
+            }
+        }
+
+        return MemberUser::normalizePicture($meta->picture ?? null);
     }
 
     private function name(\stdClass $access, ?\stdClass $id, string $sub): string

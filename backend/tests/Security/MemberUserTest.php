@@ -45,6 +45,15 @@ final class MemberUserTest extends TestCase
         self::assertFalse($user->canEditFleet());
         self::assertFalse($user->isGastro());
         self::assertSame(['Mitglieder'], $user->profile()['groups']);
+        self::assertArrayNotHasKey('picture', $user->profile());
+    }
+
+    public function testProfileIncludesAnHttpsPictureOnly(): void
+    {
+        $user = new MemberUser('auth0|vera', 'Vera Verein', ['Mitglieder'], 'https://cdn.example.test/vera.jpg');
+
+        self::assertSame('https://cdn.example.test/vera.jpg', $user->profile()['picture']);
+        self::assertNull((new MemberUser('auth0|vera', 'Vera Verein', ['Mitglieder'], 'http://cdn.example.test/vera.jpg'))->picture());
     }
 
     public function testSeveralGroupsCombine(): void

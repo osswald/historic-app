@@ -13,7 +13,9 @@ final class MemberUser implements UserInterface
         private string $sub,
         private string $displayName,
         private array $groups,
+        private ?string $picture = null,
     ) {
+        $this->picture = self::normalizePicture($picture);
     }
 
     public function getUserIdentifier(): string
@@ -30,6 +32,29 @@ final class MemberUser implements UserInterface
     public function groups(): array
     {
         return $this->groups;
+    }
+
+    public function picture(): ?string
+    {
+        return $this->picture;
+    }
+
+    public static function normalizePicture(mixed $picture): ?string
+    {
+        if (!is_string($picture)) {
+            return null;
+        }
+        $picture = trim($picture);
+        if ($picture === '' || preg_match('#\Ahttps://#', $picture) !== 1 || preg_match('/\s/', $picture) === 1) {
+            return null;
+        }
+        $parts = parse_url($picture);
+        $host = is_array($parts) ? ($parts['host'] ?? null) : null;
+        if (!is_string($host) || $host === '') {
+            return null;
+        }
+
+        return $picture;
     }
 
     public function getRoles(): array
@@ -96,7 +121,7 @@ final class MemberUser implements UserInterface
     /** @return array<string, mixed> */
     public function profile(): array
     {
-        return [
+        $profile = [
             'sub' => $this->sub,
             'displayName' => $this->displayName,
             'groups' => $this->groups,
@@ -104,5 +129,10 @@ final class MemberUser implements UserInterface
             'canPlanRides' => $this->canPlanRides(),
             'canEditFleet' => $this->canEditFleet(),
         ];
+        if ($this->picture !== null) {
+            $profile['picture'] = $this->picture;
+        }
+
+        return $profile;
     }
 }

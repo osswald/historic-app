@@ -44,11 +44,16 @@ final class MemberSession
     {
         $session = $request->getSession();
         $session->migrate(true);
-        $session->set(self::KEY, [
+        $payload = [
             'sub' => $user->getUserIdentifier(),
             'displayName' => $user->displayName(),
             'groups' => $user->groups(),
-        ]);
+        ];
+        $picture = $user->picture();
+        if ($picture !== null) {
+            $payload['picture'] = $picture;
+        }
+        $session->set(self::KEY, $payload);
     }
 
     public function read(Request $request): ?MemberUser
@@ -96,6 +101,6 @@ final class MemberSession
             }
         }
 
-        return new MemberUser($sub, $name, $names);
+        return new MemberUser($sub, $name, $names, MemberUser::normalizePicture($payload['picture'] ?? null));
     }
 }

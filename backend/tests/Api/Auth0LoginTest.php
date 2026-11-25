@@ -85,6 +85,7 @@ final class Auth0LoginTest extends ApiTestCase
         self::assertSame('Vera Verein', $profile['displayName']);
         self::assertSame(['Mitglieder'], $profile['groups']);
         self::assertFalse($profile['canOrganize']);
+        self::assertArrayNotHasKey('picture', $profile);
 
         $client->request('POST', '/api/v1/events', server: ['CONTENT_TYPE' => 'application/json'], content: '{}');
         self::assertResponseStatusCodeSame(403);
@@ -92,6 +93,24 @@ final class Auth0LoginTest extends ApiTestCase
         $client->request('GET', '/api/v1/me', server: ['HTTP_AUTHORIZATION' => 'Bearer dev']);
         self::assertResponseIsSuccessful();
         self::assertSame('Demo Mitglied', $this->jsonBody($client)['displayName']);
+    }
+
+    public function testCallbackSessionReturnsThePictureUrl(): void
+    {
+        $client = $this->signIn(new MemberUser(
+            'auth0|vera',
+            'Vera Verein',
+            ['Mitglieder'],
+            'https://cdn.example.test/vera.jpg',
+        ));
+
+        $client->request('GET', '/api/v1/me');
+        self::assertResponseIsSuccessful();
+        self::assertSame('https://cdn.example.test/vera.jpg', $this->jsonBody($client)['picture']);
+
+        $client->request('GET', '/api/v1/me', server: ['HTTP_AUTHORIZATION' => 'Bearer dev']);
+        self::assertResponseIsSuccessful();
+        self::assertArrayNotHasKey('picture', $this->jsonBody($client));
     }
 
     public function testOrganizerSessionUsesTheSameRoleCheck(): void

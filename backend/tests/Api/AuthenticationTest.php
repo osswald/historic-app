@@ -34,6 +34,7 @@ final class AuthenticationTest extends ApiTestCase
         $profile = $this->jsonBody($client);
         self::assertSame('Demo Mitglied', $profile['displayName']);
         self::assertTrue($profile['canOrganize']);
+        self::assertArrayNotHasKey('picture', $profile);
     }
 
     public function testUnknownBearerIsRejected(): void

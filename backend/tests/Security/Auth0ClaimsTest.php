@@ -60,6 +60,66 @@ final class Auth0ClaimsTest extends TestCase
         self::assertSame('Fahrten Planung', $member->displayName());
         self::assertTrue($member->canPlanRides());
         self::assertFalse($member->isOrganizer());
+        self::assertNull($member->picture());
+    }
+
+    public function testOidcPictureIsKeptWhenItIsHttps(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            self::GROUPS => ['Mitglieder'],
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'picture' => 'https://cdn.example.test/vera.jpg',
+            'https://historic-winterthur.ch/picture' => 'https://cdn.example.test/other.jpg',
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame('https://cdn.example.test/vera.jpg', $member->picture());
+    }
+
+    public function testCustomPictureClaimIsUsedWhenTheOidcClaimIsEmpty(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'picture' => 'http://cdn.example.test/vera.jpg',
+            'https://historic-winterthur.ch/picture' => 'https://cdn.example.test/fallback.jpg',
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame('https://cdn.example.test/fallback.jpg', $member->picture());
+    }
+
+    public function testGroupsComeFromTheIdTokenWhenTheAccessTokenHasNone(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            self::GROUPS => ['Vorstand'],
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame(['Vorstand'], $member->groups());
+        self::assertTrue($member->isOrganizer());
     }
 
     public function testAdminGroupKeepsTheExistingRoleMapping(): void

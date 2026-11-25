@@ -58,6 +58,7 @@ final class HttpAuth0LoginTest extends TestCase
             'aud' => 'test-client',
             'sub' => 'auth0|42',
             'name' => 'Technik Team',
+            'picture' => 'https://cdn.example.test/technik.jpg',
         ]);
         $http = new MockHttpClient(function (string $method, string $url, array $options) use ($access, $id): MockResponse {
             self::assertSame('POST', $method);
@@ -89,6 +90,7 @@ final class HttpAuth0LoginTest extends TestCase
 
         self::assertSame('Technik Team', $member->displayName());
         self::assertSame(['Technische Kommission', 'Mitglieder'], $member->groups());
+        self::assertSame('https://cdn.example.test/technik.jpg', $member->picture());
         self::assertTrue($member->isFleet());
         self::assertFalse($member->isOrganizer());
     }
@@ -100,6 +102,8 @@ final class HttpAuth0LoginTest extends TestCase
             'sub' => 'auth0|42',
             'name' => 'Id Token',
             self::GROUPS => ['Mitglieder'],
+            'picture' => '',
+            'https://historic-winterthur.ch/picture' => 'https://cdn.example.test/id.jpg',
         ]);
         $http = new MockHttpClient(new MockResponse(json_encode([
             'access_token' => 'opaque-userinfo-token',
@@ -111,6 +115,7 @@ final class HttpAuth0LoginTest extends TestCase
 
         self::assertSame('Id Token', $member->displayName());
         self::assertSame(['Mitglieder'], $member->groups());
+        self::assertSame('https://cdn.example.test/id.jpg', $member->picture());
         self::assertFalse($member->isOrganizer());
     }
 
