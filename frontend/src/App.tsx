@@ -9,6 +9,7 @@ import { EventDetailPage } from './pages/EventDetailPage'
 import { EventEditorPage } from './pages/EventEditorPage'
 import { EventsPage } from './pages/EventsPage'
 import { LaterPage } from './pages/LaterPage'
+import { VehiclesPage } from './pages/VehiclesPage'
 import { LoginPage } from './pages/LoginPage'
 import { PollDetailPage } from './pages/PollDetailPage'
 import { PollEditorPage } from './pages/PollEditorPage'
@@ -61,7 +62,7 @@ export default function App() {
               <Route element={<PollEditorPage />} path="/umfragen/neu" />
               <Route element={<PollDetailPage />} path="/umfragen/:id" />
               <Route element={<PollEditorPage />} path="/umfragen/:id/bearbeiten" />
-              <Route element={<LaterPage eyebrow="Fahrzeugstamm" text="Der interne Fahrzeugstamm mit Status, Batterieladung und Zählerständen folgt nach den Veranstaltungen. ZEDAS bleibt das Wartungssystem." title="Historische Fahrzeuge" />} path="/fahrzeuge" />
+              <Route element={<VehiclesPage />} path="/fahrzeuge" />
               <Route element={<LaterPage eyebrow="Supporterclub" text="Pro Veranstaltung gibt es später eine Gastronomieplanung. Getränke kommen aus dem CashCtrl-Mandanten des Supporterclubs." title="Gastronomieplanung" />} path="/gastronomie" />
             </Routes>
           </Shell>

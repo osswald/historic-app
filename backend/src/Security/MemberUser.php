@@ -69,6 +69,21 @@ final class MemberUser implements UserInterface
         return $this->isOrganizer() || $this->isRidePlanner();
     }
 
+    public function isFleet(): bool
+    {
+        return in_array('ROLE_FLEET', $this->getRoles(), true);
+    }
+
+    public function isAdmin(): bool
+    {
+        return in_array('ROLE_ADMIN', $this->getRoles(), true);
+    }
+
+    public function canEditFleet(): bool
+    {
+        return $this->isFleet() || $this->isAdmin();
+    }
+
     public function eraseCredentials(): void
     {
     }
@@ -82,6 +97,7 @@ final class MemberUser implements UserInterface
             'groups' => $this->groups,
             'canOrganize' => $this->isOrganizer(),
             'canPlanRides' => $this->canPlanRides(),
+            'canEditFleet' => $this->canEditFleet(),
         ];
     }
 }

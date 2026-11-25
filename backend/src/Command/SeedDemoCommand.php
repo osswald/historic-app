@@ -9,11 +9,15 @@ use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventRepository;
 use App\Domain\Event\EventStatus;
+use App\Domain\Fleet\Vehicle;
+use App\Domain\Fleet\VehicleRepository;
+use App\Domain\Fleet\VehicleStatus;
 use App\Domain\Poll\Daypart;
 use App\Domain\Poll\Poll;
 use App\Domain\Poll\PollKind;
 use App\Domain\Poll\PollRepository;
 use App\Domain\Poll\PollStatus;
+use App\Domain\Ride\AssignmentKind;
 use App\Domain\Ride\DayOffset;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideRepository;
@@ -24,15 +28,19 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'app:seed-demo', description: 'Legt die Beispielveranstaltungen, eine Beispiel-Fahrt und die Depottag-Umfrage an, falls sie noch fehlen.')]
+#[AsCommand(name: 'app:seed-demo', description: 'Legt die Beispielveranstaltungen, eine Beispiel-Fahrt, Beispielfahrzeuge und die Depottag-Umfrage an, falls sie noch fehlen.')]
 final class SeedDemoCommand extends Command
 {
     private const OBERLAND_RIDE = '6f1a9b10-3333-4333-8333-333333333333';
+    private const BE46 = '6f1a9b10-5555-4555-8555-555555555551';
+    private const BDE = '6f1a9b10-5555-4555-8555-555555555552';
+    private const SPEISE = '6f1a9b10-5555-4555-8555-555555555553';
 
     public function __construct(
         private EventRepository $events,
         private PollRepository $polls,
         private RideRepository $rides,
+        private VehicleRepository $vehicles,
         private EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
@@ -42,6 +50,12 @@ final class SeedDemoCommand extends Command
     {
         $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Zurich'));
         $seeded = false;
+
+        if ($this->vehicles->all() === []) {
+            $this->seedVehicles($now);
+            $output->writeln('Drei Beispielfahrzeuge aus der Designstudie wurden angelegt.');
+            $seeded = true;
+        }
 
         if ($this->events->all() === []) {
             $this->seedEvents($now);
@@ -132,8 +146,9 @@ final class SeedDemoCommand extends Command
         );
         $this->events->add($outing);
         $day = $outing->day('6f1a9b10-3333-4333-8333-333333333332');
-        if ($day instanceof EventDay) {
-            $this->rides->add($this->demoRide($outing, $day));
+        $ride = $day instanceof EventDay ? $this->demoRide($outing, $day) : null;
+        if ($ride instanceof Ride) {
+            $this->rides->add($ride);
         }
     }
 
@@ -150,7 +165,11 @@ final class SeedDemoCommand extends Command
             if (!$day instanceof EventDay) {
                 return false;
             }
-            $this->rides->add($this->demoRide($event, $day));
+            $ride = $this->demoRide($event, $day);
+            if (!$ride instanceof Ride) {
+                return false;
+            }
+            $this->rides->add($ride);
 
             return true;
         }
@@ -169,21 +188,57 @@ final class SeedDemoCommand extends Command
         return $event->days()[0] ?? null;
     }
 
-    private function demoRide(Event $event, EventDay $day): Ride
+    private function seedVehicles(\DateTimeImmutable $now): void
     {
-        return new Ride(
+        $this->vehicles->add(new Vehicle('Be 4/6', null, VehicleStatus::Ready, null, true, 0, $now, self::BE46));
+        $this->vehicles->add(new Vehicle('BDe 4/4', '1643', VehicleStatus::Limited, null, true, 1, $now, self::BDE));
+        $this->vehicles->add(new Vehicle('Speisewagen Dr', null, VehicleStatus::Ready, null, false, 2, $now, self::SPEISE));
+    }
+
+    private function speisewagen(): ?Vehicle
+    {
+        $known = $this->vehicles->get(self::SPEISE);
+        if ($known instanceof Vehicle) {
+            return $known;
+        }
+        foreach ($this->vehicles->all() as $vehicle) {
+            if ($vehicle->name() === 'Speisewagen Dr') {
+                return $vehicle;
+            }
+        }
+
+        return null;
+    }
+
+    private function demoRide(Event $event, EventDay $day): ?Ride
+    {
+        $vehicle = $this->speisewagen();
+        if (!$vehicle instanceof Vehicle) {
+            return null;
+        }
+        $ride = new Ride(
             $event,
             $day,
             $this->time('09:10'),
             DayOffset::Same,
             $this->time('17:30'),
             DayOffset::Same,
-            'Vereinsfahrzeug',
-            true,
+            'Beispiel',
+            '8506000',
+            'Winterthur',
+            '8503130',
+            'Hinwil',
             null,
             0,
             self::OBERLAND_RIDE,
         );
+        $ride->replaceAssignments([[
+            'kind' => AssignmentKind::Own,
+            'vehicle' => $vehicle,
+            'externalName' => null,
+        ]]);
+
+        return $ride;
     }
 
     private function seedDepotPoll(\DateTimeImmutable $now): void

@@ -14,9 +14,9 @@ interface RideRepository
     public function forEvent(string $eventId): array;
 
     /**
-     * Vereinsfahrzeuge aller anderen Veranstaltungen, Entwürfe eingeschlossen.
+     * Fahrten anderer Veranstaltungen mit mindestens einem Vereinsfahrzeug, Entwürfe eingeschlossen.
      *
      * @return list<Ride>
      */
-    public function clubOwnedExcept(string $eventId): array;
+    public function withOwnVehiclesExcept(string $eventId): array;
 }

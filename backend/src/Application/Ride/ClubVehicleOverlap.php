@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Application\Ride;
 
+use App\Domain\Fleet\Vehicle;
 use App\Domain\Ride\Ride;
+use App\Domain\Ride\RideWindow;
 
 /** Doppelbelegung vereinseigener Fahrzeuge ist eine Warnung, nie eine Sperre. */
 final class ClubVehicleOverlap
@@ -16,26 +18,27 @@ final class ClubVehicleOverlap
      */
     public function warnings(array $rides, array $elsewhere): array
     {
-        $club = array_values(array_filter($rides, static fn (Ride $ride): bool => $ride->clubVehicle()));
+        $local = $this->pairs($this->unique($rides));
+        $other = $this->pairs($this->unique($elsewhere));
         $messages = [];
-        $count = count($club);
+        $count = count($local);
         for ($index = 0; $index < $count; ++$index) {
             for ($otherIndex = $index + 1; $otherIndex < $count; ++$otherIndex) {
-                if ($this->conflicts($club[$index], $club[$otherIndex])) {
+                if ($this->conflicts($local[$index], $local[$otherIndex])) {
                     $messages[] = sprintf(
                         'Das Vereinsfahrzeug „%s“ ist in dieser Veranstaltung doppelt eingeteilt.',
-                        $this->label($club[$index]),
+                        $local[$index]['label'],
                     );
                 }
             }
-            foreach ($elsewhere as $other) {
-                if (!$other->clubVehicle() || !$this->conflicts($club[$index], $other)) {
+            foreach ($other as $candidate) {
+                if (!$this->conflicts($local[$index], $candidate)) {
                     continue;
                 }
                 $messages[] = sprintf(
                     'Das Vereinsfahrzeug „%s“ überschneidet sich mit einer Fahrt der Veranstaltung „%s“.',
-                    $this->label($club[$index]),
-                    $other->event()->title(),
+                    $local[$index]['label'],
+                    $candidate['eventTitle'],
                 );
             }
         }
@@ -43,24 +46,51 @@ final class ClubVehicleOverlap
         return array_values(array_unique($messages));
     }
 
-    private function conflicts(Ride $left, Ride $right): bool
+    /**
+     * @param list<Ride> $rides
+     * @return list<Ride>
+     */
+    private function unique(array $rides): array
     {
-        if ($this->vehicleKey($left->vehicleLabel()) !== $this->vehicleKey($right->vehicleLabel())) {
-            return false;
+        $byId = [];
+        foreach ($rides as $ride) {
+            $byId[$ride->id()] = $ride;
         }
 
-        return $left->window()->overlaps($right->window());
+        return array_values($byId);
     }
 
-    private function vehicleKey(string $label): string
+    /**
+     * @param list<Ride> $rides
+     * @return list<array{vehicleId: string, label: string, window: RideWindow, eventTitle: string}>
+     */
+    private function pairs(array $rides): array
     {
-        return mb_strtolower(trim($label));
+        $pairs = [];
+        foreach ($rides as $ride) {
+            foreach ($ride->ownAssignments() as $assignment) {
+                $vehicle = $assignment->vehicle();
+                if (!$vehicle instanceof Vehicle) {
+                    continue;
+                }
+                $pairs[] = [
+                    'vehicleId' => $vehicle->id(),
+                    'label' => $vehicle->label(),
+                    'window' => $ride->window(),
+                    'eventTitle' => $ride->event()->title(),
+                ];
+            }
+        }
+
+        return $pairs;
     }
 
-    private function label(Ride $ride): string
+    /**
+     * @param array{vehicleId: string, label: string, window: RideWindow, eventTitle: string} $left
+     * @param array{vehicleId: string, label: string, window: RideWindow, eventTitle: string} $right
+     */
+    private function conflicts(array $left, array $right): bool
     {
-        $label = trim($ride->vehicleLabel());
-
-        return $label === '' ? 'ohne Bezeichnung' : $label;
+        return $left['vehicleId'] === $right['vehicleId'] && $left['window']->overlaps($right['window']);
     }
 }

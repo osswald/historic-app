@@ -6,6 +6,9 @@ namespace App\Domain\Ride;
 
 use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
+use App\Domain\Fleet\Vehicle;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Uid\Uuid;
@@ -38,17 +41,31 @@ class Ride
     #[ORM\Column(type: Types::SMALLINT, enumType: DayOffset::class)]
     private DayOffset $arrivalOffset;
 
-    #[ORM\Column(length: 120)]
-    private string $vehicleLabel;
+    #[ORM\Column(length: 20)]
+    private string $trainNumber;
 
-    #[ORM\Column]
-    private bool $clubVehicle;
+    #[ORM\Column(length: 12)]
+    private string $originDidokCode;
+
+    #[ORM\Column(length: 120)]
+    private string $originName;
+
+    #[ORM\Column(length: 12)]
+    private string $destinationDidokCode;
+
+    #[ORM\Column(length: 120)]
+    private string $destinationName;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $internalNote;
 
     #[ORM\Column]
     private int $sortOrder;
+
+    /** @var Collection<int, RideVehicle> */
+    #[ORM\OneToMany(mappedBy: 'ride', targetEntity: RideVehicle::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    private Collection $vehicles;
 
     public function __construct(
         Event $event,
@@ -57,8 +74,11 @@ class Ride
         DayOffset $departureOffset,
         \DateTimeImmutable $arrivalTime,
         DayOffset $arrivalOffset,
-        string $vehicleLabel,
-        bool $clubVehicle,
+        string $trainNumber,
+        string $originDidokCode,
+        string $originName,
+        string $destinationDidokCode,
+        string $destinationName,
         ?string $internalNote,
         int $sortOrder,
         ?string $id = null,
@@ -70,10 +90,14 @@ class Ride
         $this->departureOffset = $departureOffset;
         $this->arrivalTime = $arrivalTime;
         $this->arrivalOffset = $arrivalOffset;
-        $this->vehicleLabel = $vehicleLabel;
-        $this->clubVehicle = $clubVehicle;
+        $this->trainNumber = $trainNumber;
+        $this->originDidokCode = $originDidokCode;
+        $this->originName = $originName;
+        $this->destinationDidokCode = $destinationDidokCode;
+        $this->destinationName = $destinationName;
         $this->internalNote = $internalNote;
         $this->sortOrder = $sortOrder;
+        $this->vehicles = new ArrayCollection();
     }
 
     public function id(): string
@@ -111,14 +135,29 @@ class Ride
         return $this->arrivalOffset;
     }
 
-    public function vehicleLabel(): string
+    public function trainNumber(): string
     {
-        return $this->vehicleLabel;
+        return $this->trainNumber;
     }
 
-    public function clubVehicle(): bool
+    public function originDidokCode(): string
     {
-        return $this->clubVehicle;
+        return $this->originDidokCode;
+    }
+
+    public function originName(): string
+    {
+        return $this->originName;
+    }
+
+    public function destinationDidokCode(): string
+    {
+        return $this->destinationDidokCode;
+    }
+
+    public function destinationName(): string
+    {
+        return $this->destinationName;
     }
 
     public function internalNote(): ?string
@@ -129,6 +168,21 @@ class Ride
     public function sortOrder(): int
     {
         return $this->sortOrder;
+    }
+
+    /** @return list<RideVehicle> */
+    public function assignments(): array
+    {
+        return array_values($this->vehicles->toArray());
+    }
+
+    /** @return list<RideVehicle> */
+    public function ownAssignments(): array
+    {
+        return array_values(array_filter(
+            $this->assignments(),
+            static fn (RideVehicle $assignment): bool => $assignment->isOwn(),
+        ));
     }
 
     public function window(): RideWindow
@@ -148,8 +202,11 @@ class Ride
         DayOffset $departureOffset,
         \DateTimeImmutable $arrivalTime,
         DayOffset $arrivalOffset,
-        string $vehicleLabel,
-        bool $clubVehicle,
+        string $trainNumber,
+        string $originDidokCode,
+        string $originName,
+        string $destinationDidokCode,
+        string $destinationName,
         ?string $internalNote,
         int $sortOrder,
     ): void {
@@ -158,10 +215,32 @@ class Ride
         $this->departureOffset = $departureOffset;
         $this->arrivalTime = $arrivalTime;
         $this->arrivalOffset = $arrivalOffset;
-        $this->vehicleLabel = $vehicleLabel;
-        $this->clubVehicle = $clubVehicle;
+        $this->trainNumber = $trainNumber;
+        $this->originDidokCode = $originDidokCode;
+        $this->originName = $originName;
+        $this->destinationDidokCode = $destinationDidokCode;
+        $this->destinationName = $destinationName;
         $this->internalNote = $internalNote;
         $this->sortOrder = $sortOrder;
+    }
+
+    /**
+     * @param list<array{kind: AssignmentKind, vehicle: ?Vehicle, externalName: ?string}> $assignments
+     */
+    public function replaceAssignments(array $assignments): void
+    {
+        foreach ($this->vehicles->toArray() as $current) {
+            $this->vehicles->removeElement($current);
+        }
+        foreach ($assignments as $index => $assignment) {
+            $this->vehicles->add(new RideVehicle(
+                $this,
+                $assignment['kind'],
+                $assignment['vehicle'],
+                $assignment['externalName'],
+                $index,
+            ));
+        }
     }
 
     /** @return array<string, mixed> */
@@ -174,8 +253,12 @@ class Ride
             'departureOffset' => $this->departureOffset->value,
             'arrivalTime' => $this->arrivalTime->format('H:i'),
             'arrivalOffset' => $this->arrivalOffset->value,
-            'vehicleLabel' => $this->vehicleLabel,
-            'clubVehicle' => $this->clubVehicle,
+            'trainNumber' => $this->trainNumber,
+            'originDidokCode' => $this->originDidokCode,
+            'originName' => $this->originName,
+            'destinationDidokCode' => $this->destinationDidokCode,
+            'destinationName' => $this->destinationName,
+            'vehicles' => array_map(static fn (RideVehicle $assignment): array => $assignment->toAudit(), $this->assignments()),
             'internalNote' => $this->internalNote,
         ];
     }

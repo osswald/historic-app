@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Doctrine;
 
+use App\Domain\Ride\AssignmentKind;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -41,12 +42,15 @@ final class DoctrineRideRepository extends ServiceEntityRepository implements Ri
         return $rides;
     }
 
-    public function clubOwnedExcept(string $eventId): array
+    public function withOwnVehiclesExcept(string $eventId): array
     {
         /** @var list<Ride> $rides */
         $rides = $this->createQueryBuilder('ride')
-            ->andWhere('ride.clubVehicle = true')
+            ->distinct()
+            ->innerJoin('ride.vehicles', 'assignment')
+            ->andWhere('assignment.kind = :kind')
             ->andWhere('IDENTITY(ride.event) != :eventId')
+            ->setParameter('kind', AssignmentKind::Own)
             ->setParameter('eventId', $eventId)
             ->getQuery()
             ->getResult();

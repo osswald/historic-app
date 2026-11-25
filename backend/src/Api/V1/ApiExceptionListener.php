@@ -6,6 +6,7 @@ namespace App\Api\V1;
 
 use App\Application\InvalidRequest;
 use App\Application\NotFound;
+use App\Application\UpstreamUnavailable;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -41,6 +42,11 @@ final class ApiExceptionListener
         } elseif ($throwable instanceof NotFound) {
             $status = 404;
             $message = $throwable->getMessage();
+        } elseif ($throwable instanceof UpstreamUnavailable) {
+            $status = 503;
+            $message = $throwable->getMessage() !== ''
+                ? $throwable->getMessage()
+                : 'Die Bahnhofsuche ist gerade nicht erreichbar.';
         } elseif ($throwable instanceof AccessDeniedException) {
             $status = 403;
             $message = $throwable->getMessage() !== '' && $throwable->getMessage() !== 'Access Denied.'

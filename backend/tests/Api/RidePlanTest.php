@@ -17,8 +17,9 @@ final class RidePlanTest extends ApiTestCase
         $created = $this->createEvent($client, 'Fahrt nach Zürich');
         $dayId = $created['days'][0]['id'];
 
+        $vehicleId = $this->createVehicle($client, 'Be 4/6');
         $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
-            'rides' => [$this->ride($dayId, '09:10', 0, '17:30', 0, 'Nur für die Planung')],
+            'rides' => [$this->ride($dayId, $vehicleId, '09:10', 0, '17:30', 0, 'Nur für die Planung')],
         ]);
 
         self::assertResponseIsSuccessful();
@@ -29,20 +30,28 @@ final class RidePlanTest extends ApiTestCase
         self::assertSame(0, $saved['rides'][0]['departureOffset']);
         self::assertSame('17:30', $saved['rides'][0]['arrivalTime']);
         self::assertSame(0, $saved['rides'][0]['arrivalOffset']);
-        self::assertSame('Vereinsfahrzeug', $saved['rides'][0]['vehicleLabel']);
-        self::assertTrue($saved['rides'][0]['clubVehicle']);
+        self::assertSame('30431', $saved['rides'][0]['trainNumber']);
+        self::assertSame('8506000', $saved['rides'][0]['origin']['didokCode']);
+        self::assertSame('Winterthur', $saved['rides'][0]['origin']['name']);
+        self::assertSame('8503130', $saved['rides'][0]['destination']['didokCode']);
+        self::assertSame('Hinwil', $saved['rides'][0]['destination']['name']);
+        self::assertSame('own', $saved['rides'][0]['vehicles'][0]['kind']);
+        self::assertSame($vehicleId, $saved['rides'][0]['vehicles'][0]['vehicleId']);
+        self::assertSame('Be 4/6', $saved['rides'][0]['vehicles'][0]['label']);
         self::assertSame('Nur für die Planung', $saved['rides'][0]['internalNote']);
         $rideId = $saved['rides'][0]['id'];
         self::assertIsString($rideId);
 
-        $updated = $this->ride($dayId, '09:10', 0, '17:30', 0, 'Nur für die Planung');
+        $updated = $this->ride($dayId, $vehicleId, '09:10', 0, '17:30', 0, 'Nur für die Planung');
         $updated['id'] = $rideId;
-        $updated['vehicleLabel'] = 'Ae 6/6';
+        $updated['trainNumber'] = '30432';
+        $updated['vehicles'][] = ['kind' => 'external', 'externalName' => 'Mietlok'];
         $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$updated]]);
 
         self::assertResponseIsSuccessful();
         self::assertSame($rideId, $this->jsonBody($client)['rides'][0]['id']);
-        self::assertSame('Ae 6/6', $this->jsonBody($client)['rides'][0]['vehicleLabel']);
+        self::assertSame('30432', $this->jsonBody($client)['rides'][0]['trainNumber']);
+        self::assertSame('Mietlok', $this->jsonBody($client)['rides'][0]['vehicles'][1]['label']);
         self::assertSame(['create', 'update'], $this->rideAuditActions());
     }
 
@@ -52,13 +61,14 @@ final class RidePlanTest extends ApiTestCase
         $created = $this->createEvent($client, 'Nachtschicht');
         $dayId = $created['days'][0]['id'];
 
+        $vehicleId = $this->createVehicle($client);
         $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
-            'rides' => [$this->ride($dayId, '22:00', 0, '06:00', 1)],
+            'rides' => [$this->ride($dayId, $vehicleId, '22:00', 0, '06:00', 1)],
         ]);
         self::assertResponseIsSuccessful();
 
         $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
-            'rides' => [$this->ride($dayId, '10:00', 0, '18:00', -1)],
+            'rides' => [$this->ride($dayId, $vehicleId, '10:00', 0, '18:00', -1)],
         ]);
 
         self::assertResponseStatusCodeSame(422);
@@ -76,19 +86,20 @@ final class RidePlanTest extends ApiTestCase
     public function testOwnVehicleOverlapWarnsAndStillSaves(): void
     {
         $client = $this->browser();
+        $vehicleId = $this->createVehicle($client, 'Be 4/6');
         $draft = $this->createEvent($client, 'Entwurf Fahrt', 'draft');
         $published = $this->createEvent($client, 'Publizierte Fahrt', 'published');
 
         $this->request($client, 'PUT', '/api/v1/events/'.$draft['id'].'/rides', [
-            'rides' => [$this->ride($draft['days'][0]['id'], '09:00', 0, '12:00', 0)],
+            'rides' => [$this->ride($draft['days'][0]['id'], $vehicleId, '09:00', 0, '12:00', 0)],
         ]);
         self::assertResponseIsSuccessful();
         self::assertSame([], $this->jsonBody($client)['warnings']);
 
         $this->request($client, 'PUT', '/api/v1/events/'.$published['id'].'/rides', [
             'rides' => [
-                $this->ride($published['days'][0]['id'], '11:00', 0, '15:00', 0),
-                $this->ride($published['days'][0]['id'], '14:00', 0, '18:00', 0),
+                $this->ride($published['days'][0]['id'], $vehicleId, '11:00', 0, '15:00', 0),
+                $this->ride($published['days'][0]['id'], $vehicleId, '14:00', 0, '18:00', 0),
             ],
         ]);
 
@@ -109,10 +120,11 @@ final class RidePlanTest extends ApiTestCase
     public function testMemberCannotUpdateRidesOrSeeInternalNotes(): void
     {
         $client = $this->browser();
+        $vehicleId = $this->createVehicle($client, 'Be 4/6');
         $created = $this->createEvent($client, 'Sichtbare Fahrt');
         $dayId = $created['days'][0]['id'];
         $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
-            'rides' => [$this->ride($dayId, '09:10', 0, '17:30', 0, 'Trasse nur intern')],
+            'rides' => [$this->ride($dayId, $vehicleId, '09:10', 0, '17:30', 0, 'Trasse nur intern')],
         ]);
         self::assertResponseIsSuccessful();
         $rideId = $this->jsonBody($client)['rides'][0]['id'];
@@ -135,8 +147,10 @@ final class RidePlanTest extends ApiTestCase
                     'departureOffset' => 0,
                     'arrivalTime' => '18:00',
                     'arrivalOffset' => 0,
-                    'vehicleLabel' => 'Fremd',
-                    'clubVehicle' => false,
+                    'trainNumber' => '99999',
+                    'origin' => ['didokCode' => '8506000', 'name' => 'Winterthur'],
+                    'destination' => ['didokCode' => '8503130', 'name' => 'Hinwil'],
+                    'vehicles' => [['kind' => 'external', 'externalName' => 'Fremd']],
                     'internalNote' => 'Sollte nicht gespeichert werden',
                 ]],
             ]);
@@ -152,7 +166,42 @@ final class RidePlanTest extends ApiTestCase
         self::assertResponseIsSuccessful();
         self::assertSame('Trasse nur intern', $this->jsonBody($organizer)['rides'][0]['internalNote']);
         self::assertSame('09:10', $this->jsonBody($organizer)['rides'][0]['departureTime']);
-        self::assertSame('Vereinsfahrzeug', $this->jsonBody($organizer)['rides'][0]['vehicleLabel']);
+        self::assertSame('30431', $this->jsonBody($organizer)['rides'][0]['trainNumber']);
+        self::assertSame($vehicleId, $this->jsonBody($organizer)['rides'][0]['vehicles'][0]['vehicleId']);
+    }
+
+    public function testTrainNumberAndStationAreRequired(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Ohne Zugnummer');
+        $vehicleId = $this->createVehicle($client);
+        $ride = $this->ride($created['days'][0]['id'], $vehicleId, '09:10', 0, '17:30', 0);
+        $ride['trainNumber'] = '';
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$ride]]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Bitte eine Zugnummer angeben.', $this->jsonBody($client)['errors']['rides.0.trainNumber']);
+
+        $ride['trainNumber'] = '30431';
+        $ride['origin'] = null;
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$ride]]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Bitte den Startbahnhof aus der Suche wählen.', $this->jsonBody($client)['errors']['rides.0.origin']);
+    }
+
+    public function testExternalVehicleDoesNotWarn(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Externe Lok');
+        $dayId = $created['days'][0]['id'];
+        $external = $this->ride($dayId, 'unused', '09:00', 0, '12:00', 0);
+        $external['vehicles'] = [['kind' => 'external', 'externalName' => 'Mietlok']];
+        $second = $external;
+        $second['departureTime'] = '11:00';
+        $second['arrivalTime'] = '15:00';
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$external, $second]]);
+        self::assertResponseIsSuccessful();
+        self::assertSame([], $this->jsonBody($client)['warnings']);
+        self::assertSame('external', $this->jsonBody($client)['rides'][0]['vehicles'][0]['kind']);
     }
 
     /** @param callable(KernelBrowser): void $callback */
@@ -227,9 +276,26 @@ final class RidePlanTest extends ApiTestCase
         return $this->jsonBody($client);
     }
 
+    private function createVehicle(KernelBrowser $client, string $name = 'Be 4/6'): string
+    {
+        $this->request($client, 'POST', '/api/v1/vehicles', [
+            'name' => $name,
+            'number' => null,
+            'status' => 'ready',
+            'tracksMotorHours' => true,
+            'technicalNote' => null,
+        ]);
+        self::assertResponseStatusCodeSame(201);
+        $id = $this->jsonBody($client)['id'];
+        self::assertIsString($id);
+
+        return $id;
+    }
+
     /** @return array<string, mixed> */
     private function ride(
         string $dayId,
+        string $vehicleId,
         string $departure,
         int $departureOffset,
         string $arrival,
@@ -242,8 +308,13 @@ final class RidePlanTest extends ApiTestCase
             'departureOffset' => $departureOffset,
             'arrivalTime' => $arrival,
             'arrivalOffset' => $arrivalOffset,
-            'vehicleLabel' => 'Vereinsfahrzeug',
-            'clubVehicle' => true,
+            'trainNumber' => '30431',
+            'origin' => ['didokCode' => '8506000', 'name' => 'Winterthur'],
+            'destination' => ['didokCode' => '8503130', 'name' => 'Hinwil'],
+            'vehicles' => [[
+                'kind' => 'own',
+                'vehicleId' => $vehicleId,
+            ]],
             'internalNote' => $note,
         ];
     }

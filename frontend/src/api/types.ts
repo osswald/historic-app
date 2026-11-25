@@ -4,9 +4,40 @@ export type Member = {
   groups: string[]
   canOrganize: boolean
   canPlanRides: boolean
+  canEditFleet: boolean
 }
 
 export type DayOffset = -1 | 0 | 1
+
+export type StationChoice = {
+  didokCode: string
+  name: string
+}
+
+export type StationHit = StationChoice & {
+  id: string | null
+  abbreviation: string | null
+}
+
+export type RideVehicleKind = 'own' | 'external'
+
+export type RideVehicle = {
+  id: string
+  kind: RideVehicleKind
+  vehicleId: string | null
+  name: string | null
+  number: string | null
+  label: string
+}
+
+export type OwnVehicleOption = {
+  id: string
+  name: string
+  number: string | null
+  label: string
+  status: VehicleStatus
+  statusLabel: string
+}
 
 export type Ride = {
   id: string
@@ -15,8 +46,10 @@ export type Ride = {
   departureOffset: DayOffset
   arrivalTime: string
   arrivalOffset: DayOffset
-  vehicleLabel: string
-  clubVehicle: boolean
+  trainNumber: string
+  origin: StationChoice
+  destination: StationChoice
+  vehicles: RideVehicle[]
   internalNote: string | null
 }
 
@@ -24,6 +57,44 @@ export type RidePlan = {
   canEdit: boolean
   warnings: string[]
   rides: Ride[]
+  ownVehicles: OwnVehicleOption[]
+}
+
+export type VehicleStatus = 'ready' | 'limited' | 'blocked'
+
+export type BatteryCharge = {
+  id: string
+  chargedOn: string
+  chargedAt: string
+  recordedBy: string
+}
+
+export type MeterReading = {
+  id: string
+  kind: 'motor_hours' | 'kilometres'
+  kindLabel: string
+  value: string
+  readOn: string
+  recordedBy: string
+}
+
+export type FleetVehicle = {
+  id: string
+  name: string
+  number: string | null
+  label: string
+  status: VehicleStatus
+  statusLabel: string
+  technicalNote?: string | null
+  tracksMotorHours?: boolean
+  batteryCharges?: BatteryCharge[]
+  meterReadings?: MeterReading[]
+}
+
+export type FleetList = {
+  canEdit: boolean
+  canViewTechnical: boolean
+  vehicles: FleetVehicle[]
 }
 
 export type Answer = 'yes' | 'no'
