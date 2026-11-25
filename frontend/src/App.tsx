@@ -10,6 +10,9 @@ import { EventEditorPage } from './pages/EventEditorPage'
 import { EventsPage } from './pages/EventsPage'
 import { LaterPage } from './pages/LaterPage'
 import { LoginPage } from './pages/LoginPage'
+import { PollDetailPage } from './pages/PollDetailPage'
+import { PollEditorPage } from './pages/PollEditorPage'
+import { PollsPage } from './pages/PollsPage'
 import { Shell } from './shell/Shell'
 import { MemberContext, ToastContext } from './shell/context'
 
@@ -54,7 +57,10 @@ export default function App() {
               <Route element={<EventEditorPage />} path="/veranstaltungen/neu" />
               <Route element={<EventDetailPage />} path="/veranstaltungen/:id" />
               <Route element={<EventEditorPage />} path="/veranstaltungen/:id/bearbeiten" />
-              <Route element={<LaterPage eyebrow="Terminumfragen" text="Normale Terminsuche und monatliche Depottage-Umfragen mit Ja/Nein, Speichern und Ergänzung erforderlich sind der nächste fachliche Schritt." title="Terminumfragen" />} path="/umfragen" />
+              <Route element={<PollsPage />} path="/umfragen" />
+              <Route element={<PollEditorPage />} path="/umfragen/neu" />
+              <Route element={<PollDetailPage />} path="/umfragen/:id" />
+              <Route element={<PollEditorPage />} path="/umfragen/:id/bearbeiten" />
               <Route element={<LaterPage eyebrow="Fahrzeugstamm" text="Der interne Fahrzeugstamm mit Status, Batterieladung und Zählerständen folgt nach den Veranstaltungen. ZEDAS bleibt das Wartungssystem." title="Historische Fahrzeuge" />} path="/fahrzeuge" />
               <Route element={<LaterPage eyebrow="Supporterclub" text="Pro Veranstaltung gibt es später eine Gastronomieplanung. Getränke kommen aus dem CashCtrl-Mandanten des Supporterclubs." title="Gastronomieplanung" />} path="/gastronomie" />
             </Routes>

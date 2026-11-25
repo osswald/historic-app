@@ -1,0 +1,23 @@
+{
+	frankenphp
+	order php_server before file_server
+}
+
+# Hostname: app.historic-winterthur.ch
+# Infomaniak Public Cloud is OpenStack. Caddy requests a certificate only after
+# the DNS A/AAAA record points at the instance floating IP and ports 80 and 443
+# are open in the security group. This file does not configure DNS or OpenStack.
+{$SERVER_NAME:app.historic-winterthur.ch} {
+	encode zstd gzip
+
+	handle /api/* {
+		root * /app/public
+		php_server
+	}
+
+	handle {
+		root * /srv/frontend
+		try_files {path} /index.html
+		file_server
+	}
+}

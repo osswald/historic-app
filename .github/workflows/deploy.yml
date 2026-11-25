@@ -1,0 +1,105 @@
+name: Deploy
+
+# Deploys to https://app.historic-winterthur.ch only after CI succeeds on a push to main.
+# Infomaniak Public Cloud is OpenStack, not a classic VPS. The test instance
+# is already up (floating IP 195.15.196.156, Ubuntu LTS, Docker). DNS A/AAAA
+# for app.historic-winterthur.ch must point at that floating IP. The security
+# group must allow 22, 80 and 443.
+# Secrets, with no values in this file: SSH_HOST (the floating IP), SSH_USER,
+# SSH_PRIVATE_KEY, APP_SECRET, DATABASE_URL, POSTGRES_PASSWORD, AUTH0_DOMAIN,
+# AUTH0_AUDIENCE, AUTH0_GROUPS_CLAIM.
+# DATABASE_URL must use hostname "database" and the same password as POSTGRES_PASSWORD.
+# The SSH user needs passwordless sudo for the first Docker install.
+# AUTH_DEV_MODE stays 1 on this host until Auth0 replaces the demo login.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Deploy over SSH to the OpenStack instance
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          APP_SECRET: ${{ secrets.APP_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          AUTH0_DOMAIN: ${{ secrets.AUTH0_DOMAIN }}
+          AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
+          AUTH0_GROUPS_CLAIM: ${{ secrets.AUTH0_GROUPS_CLAIM }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 "${HOME}/.ssh"
+          key="${HOME}/.ssh/historic_deploy"
+          printf '%s\n' "$SSH_PRIVATE_KEY" | sed 's/\\n/\n/g' > "$key"
+          chmod 600 "$key"
+          ssh-keyscan -H "$SSH_HOST" >> "${HOME}/.ssh/known_hosts"
+          ssh_opts=(-i "$key" -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
+
+          ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          need=0
+          command -v rsync >/dev/null 2>&1 || need=1
+          command -v docker >/dev/null 2>&1 || need=1
+          if command -v docker >/dev/null 2>&1 && ! docker compose version >/dev/null 2>&1; then
+            need=1
+          fi
+          if [ "$need" -eq 1 ]; then
+            sudo apt-get update
+            sudo apt-get install -y rsync docker.io docker-compose-v2
+          fi
+          sudo mkdir -p /opt/historic-winterthur
+          sudo chown "$USER:$USER" /opt/historic-winterthur
+          REMOTE
+
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude 'backend/vendor/' \
+            --exclude 'backend/var/' \
+            --exclude 'backend/.env' \
+            --exclude 'backend/.env.dev' \
+            --exclude 'backend/.env.local' \
+            --exclude 'backend/.env.*.local' \
+            --exclude 'frontend/node_modules/' \
+            --exclude 'frontend/dist/' \
+            --exclude 'infra/.env.prod' \
+            --exclude 'backend/.phpunit.cache/' \
+            -e "ssh -i ${key} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            ./ "${SSH_USER}@${SSH_HOST}:/opt/historic-winterthur/"
+
+          umask 077
+          envfile="$(mktemp)"
+          {
+            printf 'APP_SECRET=%s\n' "$APP_SECRET"
+            printf 'DATABASE_URL=%s\n' "$DATABASE_URL"
+            printf 'POSTGRES_PASSWORD=%s\n' "$POSTGRES_PASSWORD"
+            printf 'POSTGRES_DB=%s\n' app
+            printf 'POSTGRES_USER=%s\n' app
+            printf 'AUTH0_DOMAIN=%s\n' "$AUTH0_DOMAIN"
+            printf 'AUTH0_AUDIENCE=%s\n' "$AUTH0_AUDIENCE"
+            printf 'AUTH0_GROUPS_CLAIM=%s\n' "$AUTH0_GROUPS_CLAIM"
+            printf '%s\n' 'CORS_ALLOW_ORIGIN=^https://app[.]historic-winterthur[.]ch$'
+          } > "$envfile"
+          scp "${ssh_opts[@]}" "$envfile" "${SSH_USER}@${SSH_HOST}:/opt/historic-winterthur/infra/.env.prod"
+          rm -f "$envfile"
+
+          ssh "${ssh_opts[@]}" "${SSH_USER}@${SSH_HOST}" 'chmod 600 /opt/historic-winterthur/infra/.env.prod && cd /opt/historic-winterthur && sudo docker compose --env-file infra/.env.prod -f infra/compose.prod.yaml up -d --build'

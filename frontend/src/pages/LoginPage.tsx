@@ -20,7 +20,7 @@ export function LoginPage({ onLogin }: { onLogin: () => void }) {
           <div className="panel-head"><h2>Anmeldung</h2></div>
           <div className="panel-inner">
             <p>Die Vereinsplattform ist den Mitgliedern des SBB Historic-Team Winterthur und des Supporterclubs vorbehalten.</p>
-            <p className="muted">In dieser Entwicklungsumgebung meldest du dich als Demomitglied an. Sobald die Auth0-Anwendung eingetragen ist, läuft die Anmeldung über das bestehende Vereinslogin.</p>
+            <p className="muted">Bis die Auth0-Anmeldung eingetragen ist, meldest du dich als Demomitglied an. Danach läuft die Anmeldung über das bestehende Vereinslogin.</p>
             <button className="btn primary" type="button" onClick={() => { startDevSession(); onLogin() }}>Als Demomitglied weiter</button>
           </div>
         </div>

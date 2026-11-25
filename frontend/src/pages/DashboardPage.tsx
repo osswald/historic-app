@@ -96,12 +96,17 @@ export function DashboardPage() {
             <div className="panel-head"><h2>Meine Helferschichten</h2></div>
             <p className="empty">Persönliche Schichten erscheinen hier, sobald die Helferplanung verknüpft ist.</p>
           </div>
-          <div className="panel">
+            <div className="panel">
             <div className="panel-head">
               <h2>Offene Terminumfrage</h2>
-              <Link className="a" to="/umfragen">Zu den Umfragen ›</Link>
+              <Link className="a" to={data?.openPoll ? `/umfragen/${data.openPoll.id}` : '/umfragen'}>{data?.openPoll?.state === 'complete' ? 'Ansehen ›' : 'Beantworten ›'}</Link>
             </div>
-            <p className="empty">Keine offene Terminumfrage. Die Depottage-Umfragen folgen im nächsten Ausbauschritt.</p>
+            {data?.openPoll ? (
+              <div className="panel-inner" style={{ paddingTop: 0 }}>
+                <b style={{ fontSize: 13 }}>{data.openPoll.title}</b>
+                <p className="muted" style={{ margin: '7px 0 0' }}>{data.openPoll.prompt}</p>
+              </div>
+            ) : <p className="empty">Keine offene Terminumfrage.</p>}
           </div>
         </div>
       </div>

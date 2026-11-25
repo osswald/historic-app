@@ -8,6 +8,11 @@ use App\Domain\Event\Attendance;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventRepository;
 use App\Domain\Event\EventStatus;
+use App\Domain\Poll\Daypart;
+use App\Domain\Poll\Poll;
+use App\Domain\Poll\PollKind;
+use App\Domain\Poll\PollRepository;
+use App\Domain\Poll\PollStatus;
 use App\Security\DevTokenAuthenticator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -15,11 +20,12 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-#[AsCommand(name: 'app:seed-demo', description: 'Legt die Beispielveranstaltungen der Designstudie an, falls noch keine vorhanden sind.')]
+#[AsCommand(name: 'app:seed-demo', description: 'Legt die Beispielveranstaltungen und die Depottag-Umfrage an, falls sie noch fehlen.')]
 final class SeedDemoCommand extends Command
 {
     public function __construct(
         private EventRepository $events,
+        private PollRepository $polls,
         private EntityManagerInterface $entityManager,
     ) {
         parent::__construct();
@@ -27,13 +33,34 @@ final class SeedDemoCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        if ($this->events->all() !== []) {
-            $output->writeln('Es sind bereits Veranstaltungen vorhanden. Es wurde nichts ergänzt.');
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Zurich'));
+        $seeded = false;
+
+        if ($this->events->all() === []) {
+            $this->seedEvents($now);
+            $output->writeln('Drei Beispielveranstaltungen wurden angelegt.');
+            $seeded = true;
+        }
+
+        if ($this->polls->all() === []) {
+            $this->seedDepotPoll($now);
+            $output->writeln('Die Depottage-Umfrage Januar 2027 wurde angelegt.');
+            $seeded = true;
+        }
+
+        if (!$seeded) {
+            $output->writeln('Beispieldaten sind bereits vorhanden. Es wurde nichts ergänzt.');
 
             return Command::SUCCESS;
         }
 
-        $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Zurich'));
+        $this->entityManager->flush();
+
+        return Command::SUCCESS;
+    }
+
+    private function seedEvents(\DateTimeImmutable $now): void
+    {
         $depot = $this->make(
             '6f1a9b10-1111-4111-8111-111111111111',
             'Depottag Winterthur',
@@ -94,10 +121,29 @@ final class SeedDemoCommand extends Command
             $now,
         );
         $this->events->add($ride);
-        $this->entityManager->flush();
-        $output->writeln('Drei Beispielveranstaltungen wurden angelegt.');
+    }
 
-        return Command::SUCCESS;
+    private function seedDepotPoll(\DateTimeImmutable $now): void
+    {
+        $poll = new Poll(
+            'Depottage Januar 2027',
+            PollKind::Depot,
+            PollStatus::Open,
+            'Bitte gib deine Verfügbarkeit an.',
+            'Lok-Depot-Ost · Winterthur',
+            ['historic'],
+            null,
+            $now,
+            '6f1a9b10-4444-4444-8444-444444444441',
+        );
+        $sort = 0;
+        foreach (['2027-01-02', '2027-01-03', '2027-01-09', '2027-01-10', '2027-01-16', '2027-01-17', '2027-01-23', '2027-01-24', '2027-01-30', '2027-01-31'] as $date) {
+            foreach ([Daypart::Morning, Daypart::Afternoon, Daypart::Evening] as $daypart) {
+                $poll->addOption($this->date($date), $daypart, null, null, $sort);
+                ++$sort;
+            }
+        }
+        $this->polls->add($poll);
     }
 
     /** @param list<string> $clubs

@@ -26,6 +26,7 @@ services:
 
     App\Domain\Event\EventRepository: '@App\Infrastructure\Doctrine\DoctrineEventRepository'
     App\Domain\Event\EventDayRepository: '@App\Infrastructure\Doctrine\DoctrineEventDayRepository'
+    App\Domain\Poll\PollRepository: '@App\Infrastructure\Doctrine\DoctrinePollRepository'
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones

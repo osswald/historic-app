@@ -66,5 +66,66 @@ export type DashboardData = {
   nextSevenDays: Array<{ date: string; weekday: string; day: string; hasEvent: boolean }>
   tasks: unknown[]
   shifts: unknown[]
-  openPoll: null
+  openPoll: { id: string; title: string; prompt: string; state: PollState } | null
+}
+
+export type PollState = 'unanswered' | 'supplement' | 'complete'
+export type Daypart = 'morning' | 'afternoon' | 'evening'
+
+export type PollOption = {
+  id: string
+  date: string
+  dateLabel: string
+  daypart: Daypart | null
+  daypartLabel: string | null
+  startsAt: string | null
+  endsAt: string | null
+  answer: Answer | null
+  needsSupplement: boolean
+  yesCount: number
+  noCount: number
+  yesNames: string[]
+}
+
+export type PollDay = {
+  date: string
+  label: string
+  options: PollOption[]
+}
+
+export type PollDetail = {
+  id: string
+  title: string
+  kind: 'normal' | 'depot'
+  kindLabel: string
+  status: 'open' | 'closed'
+  statusLabel: string
+  description: string | null
+  location: string | null
+  clubs: Array<'historic' | 'supporter'>
+  clubLabels: string[]
+  deadline: string | null
+  deadlinePassed: boolean
+  acceptsAnswers: boolean
+  eventId: string | null
+  myState: PollState
+  myStateLabel: string
+  comment: string | null
+  options: PollOption[]
+  days: PollDay[]
+}
+
+export type PollCard = {
+  id: string
+  title: string
+  kind: 'normal' | 'depot'
+  kindLabel: string
+  status: 'open' | 'closed'
+  statusLabel: string
+  deadline: string | null
+  optionCount: number
+  myState: PollState
+  myStateLabel: string
+  eventId: string | null
+  acceptsAnswers: boolean
 }

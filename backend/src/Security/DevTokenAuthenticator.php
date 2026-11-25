@@ -23,8 +23,6 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
     public function __construct(
         #[Autowire('%env(bool:AUTH_DEV_MODE)%')]
         private bool $enabled,
-        #[Autowire('%kernel.environment%')]
-        private string $environment,
         #[Autowire('%env(DEV_USER_NAME)%')]
         private string $displayName,
         #[Autowire('%env(DEV_USER_GROUPS)%')]
@@ -34,7 +32,9 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
 
     public function supports(Request $request): ?bool
     {
-        if (!$this->active()) {
+        // AUTH_DEV_MODE is the only switch, including on the public host.
+        // Turn it off once Auth0 replaces the temporary demo login.
+        if (!$this->enabled) {
             return false;
         }
 
@@ -60,10 +60,5 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
     public function onAuthenticationFailure(Request $request, AuthenticationException $exception): ?Response
     {
         return new JsonResponse(['error' => 'Anmeldung ungültig.'], Response::HTTP_UNAUTHORIZED);
-    }
-
-    private function active(): bool
-    {
-        return $this->enabled && $this->environment !== 'prod';
     }
 }

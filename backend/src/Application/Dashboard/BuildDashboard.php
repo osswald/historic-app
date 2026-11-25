@@ -6,6 +6,8 @@ namespace App\Application\Dashboard;
 
 use App\Application\Event\EventCatalog;
 use App\Application\Event\EventPresenter;
+use App\Application\Poll\PollCatalog;
+use App\Application\Poll\PollPresenter;
 use App\Application\ZurichClock;
 use App\Security\MemberUser;
 
@@ -14,6 +16,8 @@ final class BuildDashboard
     public function __construct(
         private EventCatalog $catalog,
         private EventPresenter $presenter,
+        private PollCatalog $polls,
+        private PollPresenter $pollPresenter,
         private ZurichClock $clock,
     ) {
     }
@@ -61,10 +65,26 @@ final class BuildDashboard
             ];
         }
 
+        $now = $this->clock->now();
+        $answerable = [];
+        $pending = 0;
+        $featured = null;
+        foreach ($this->polls->visibleTo($user) as $poll) {
+            if (!$poll->acceptsAnswers($now)) {
+                continue;
+            }
+            $answerable[] = $poll;
+            if ($poll->memberState($user->getUserIdentifier()) !== 'complete') {
+                ++$pending;
+                $featured ??= $poll;
+            }
+        }
+        $featured ??= $answerable[0] ?? null;
+
         return [
             'counts' => [
                 'openResponses' => $open,
-                'polls' => 0,
+                'polls' => $pending,
                 'shifts' => 0,
                 'tasks' => 0,
             ],
@@ -72,7 +92,7 @@ final class BuildDashboard
             'nextSevenDays' => $week,
             'tasks' => [],
             'shifts' => [],
-            'openPoll' => null,
+            'openPoll' => $featured instanceof \App\Domain\Poll\Poll ? $this->pollPresenter->spotlight($featured, $user) : null,
         ];
     }
 }
