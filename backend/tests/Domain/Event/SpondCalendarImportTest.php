@@ -34,7 +34,7 @@ final class SpondCalendarImportTest extends TestCase
             false,
             $now,
         );
-        $vehicle = $this->createMock(Vehicle::class);
+        $vehicle = $this->createStub(Vehicle::class);
         $vehicle->method('id')->willReturn('vehicle-1');
         $event->replaceAssignedVehicles([['vehicle' => $vehicle, 'rentalStatus' => null]]);
 

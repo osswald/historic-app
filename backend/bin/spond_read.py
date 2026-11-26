@@ -7,13 +7,15 @@ import asyncio
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from spond import spond
 
 GROUP_NAME = "Historic Team Winterthur"
-EVENT_HEADING = "Führung inbahn"
-EVENT_DAY = "2026-11-14"
+MAX_EVENTS = 500
+PAGE_LIMIT = 100
+EARLIEST = datetime(2000, 1, 1, tzinfo=timezone.utc)
+LATEST = datetime(2045, 12, 31, tzinfo=timezone.utc)
 
 
 def credentials() -> tuple[str, str]:
@@ -127,36 +129,6 @@ def options(event: dict) -> list[dict]:
     return rows
 
 
-def on_day(event: dict, day: str) -> bool:
-    start = text(event.get("startTimestamp"))
-    if start is None:
-        return False
-    if start.startswith(day):
-        return True
-    try:
-        instant = datetime.fromisoformat(start.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    return instant.astimezone(timezone.utc).date().isoformat() == day
-
-
-def preferred(events: list, heading: str, day: str) -> dict | None:
-    matches = [
-        event for event in events
-        if isinstance(event, dict) and text(event.get("heading")) == heading and on_day(event, day)
-    ]
-    if matches:
-        return matches[0]
-    return None
-
-
-def newest(events: list) -> dict | None:
-    dated = [event for event in events if isinstance(event, dict) and text(event.get("startTimestamp"))]
-    if not dated:
-        return None
-    return max(dated, key=lambda event: str(event.get("startTimestamp")))
-
-
 def event_row(event: dict) -> dict | None:
     responses = event.get("responses") if isinstance(event.get("responses"), dict) else {}
     event_id = text(event.get("id"))
@@ -198,9 +170,55 @@ def export(group: dict, events: list[dict]) -> dict:
             "name": GROUP_NAME,
             "members": members(group),
         },
-        "event": events[0],
         "events": events,
     }
+
+
+async def read_window(client: spond.Spond, group_id: str, min_start: datetime, max_start: datetime) -> list[dict]:
+    if min_start.date() > max_start.date():
+        return []
+    batch = await client.get_events(
+        group_id=group_id,
+        include_scheduled=True,
+        min_start=min_start,
+        max_start=max_start,
+        max_events=MAX_EVENTS,
+    ) or []
+    rows: list[dict] = []
+    seen: set[str] = set()
+    for item in batch:
+        if not isinstance(item, dict):
+            continue
+        event_id = text(item.get("id"))
+        if event_id is None or event_id in seen:
+            continue
+        seen.add(event_id)
+        rows.append(item)
+    if len(rows) < PAGE_LIMIT:
+        exported: list[dict] = []
+        for item in rows:
+            detail = await client.get_event(str(item["id"]))
+            if not isinstance(detail, dict):
+                print("Ein Termin konnte nicht gelesen werden.", file=sys.stderr)
+                raise SystemExit(1)
+            row = event_row(detail)
+            if row is None:
+                print("Ein Termin ist unvollständig.", file=sys.stderr)
+                raise SystemExit(1)
+            exported.append(row)
+        return exported
+    start_day = min_start.date()
+    end_day = max_start.date()
+    if (end_day - start_day).days < 1:
+        print("Die Terminliste ist unvollständig.", file=sys.stderr)
+        raise SystemExit(1)
+    mid = start_day + timedelta(days=(end_day - start_day).days // 2)
+    left_end = datetime(mid.year, mid.month, mid.day, tzinfo=timezone.utc)
+    right = mid + timedelta(days=1)
+    right_start = datetime(right.year, right.month, right.day, tzinfo=timezone.utc)
+    earlier = await read_window(client, group_id, min_start, left_end)
+    later = await read_window(client, group_id, right_start, max_start)
+    return earlier + later
 
 
 async def read_export(username: str, password: str) -> dict:
@@ -215,18 +233,20 @@ async def read_export(username: str, password: str) -> dict:
             print("Die Gruppe Historic Team Winterthur wurde nicht gefunden.", file=sys.stderr)
             raise SystemExit(1)
         group_id = str(group["id"])
-        listed = await client.get_events(
-            group_id=group_id,
-            include_scheduled=True,
-            min_start=datetime(2018, 1, 1, tzinfo=timezone.utc),
-            max_start=datetime(2028, 1, 1, tzinfo=timezone.utc),
-            max_events=500,
-        ) or []
-        rows = [row for item in listed if isinstance(item, dict) and (row := event_row(item)) is not None]
+        listed = await read_window(client, group_id, EARLIEST, LATEST)
+        found: dict[str, dict] = {}
+        order: list[str] = []
+        for row in listed:
+            event_id = str(row.get("spondId") or "")
+            if event_id == "" or event_id in found:
+                continue
+            found[event_id] = row
+            order.append(event_id)
+        rows = [found[event_id] for event_id in order]
         if not rows:
             print("In der Gruppe wurde kein Termin gefunden.", file=sys.stderr)
             raise SystemExit(1)
-        rows.sort(key=lambda item: str(item.get("startTimestamp")))
+        rows.sort(key=lambda item: (str(item.get("startTimestamp")), str(item.get("spondId"))))
         return export(group, rows)
     finally:
         await client.clientsession.close()

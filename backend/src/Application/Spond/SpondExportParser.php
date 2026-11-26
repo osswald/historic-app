@@ -24,8 +24,8 @@ final class SpondExportParser
     public function parse(array $export, array $accounts, \DateTimeImmutable $readAt): SpondRead
     {
         $group = $this->arrayValue($export, 'group');
-        $eventRows = $export['events'] ?? null;
-        if ($group === null || !is_array($eventRows) || !array_is_list($eventRows)) {
+        $eventRows = $this->eventRows($export);
+        if ($group === null || $eventRows === null) {
             throw new SpondExportException('Die Spond-Antwort enthält keine Gruppe oder keine Termine.');
         }
 
@@ -104,6 +104,26 @@ final class SpondExportParser
         }
 
         return $read;
+    }
+
+    /**
+     * Der Kalenderimport liefert `events`. Ältere Leseabfragen und die Tests haben einen einzelnen `event`.
+     *
+     * @param array<string, mixed> $export
+     * @return list<mixed>|null
+     */
+    private function eventRows(array $export): ?array
+    {
+        $rows = $export['events'] ?? null;
+        if (is_array($rows) && array_is_list($rows)) {
+            return $rows;
+        }
+        $one = $export['event'] ?? null;
+        if (is_array($one)) {
+            return [$one];
+        }
+
+        return null;
     }
 
     /** @param array<string, mixed> $group

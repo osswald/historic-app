@@ -56,7 +56,7 @@ final class SpondIdMatcherTest extends TestCase
                     ['spondId' => 'spond-a'],
                 ],
             ],
-            'event' => [
+            'events' => [[
                 'spondId' => 'event-1',
                 'heading' => 'Führung inbahn',
                 'startTimestamp' => '2026-11-14T09:30:00Z',
@@ -76,13 +76,14 @@ final class SpondIdMatcherTest extends TestCase
                     ['spondId' => 'task-1', 'name' => 'Kasse', 'description' => 'Abend', 'accepted' => 0, 'declined' => 0, 'unanswered' => 0],
                     ['name' => 'ohne Id'],
                 ],
-            ],
+            ]],
         ], [
             ['sub' => 'auth0|vera', 'appMetadata' => ['historic_winterthur' => ['spond_id' => 'spond-a']]],
             ['sub' => 'auth0|other', 'appMetadata' => (object) ['historic_winterthur' => (object) ['spond_id' => 'not-exported']]],
         ], new \DateTimeImmutable('2026-11-26T08:00:00+01:00'));
 
-        self::assertSame('2026-11-14', $read->eventOn()->format('Y-m-d'));
+        $event = $read->events()[0];
+        self::assertSame('2026-11-14', $event->eventOn()->format('Y-m-d'));
         self::assertSame(['spond-a', 'spond-b'], array_map(static fn ($person) => $person->spondId(), $read->people()));
         self::assertSame('auth0|vera', $read->people()[0]->matchedSub());
         self::assertNull($read->people()[1]->matchedSub());
@@ -90,12 +91,12 @@ final class SpondIdMatcherTest extends TestCase
             ['spond-a', SpondReply::Accepted, null, 'auth0|vera'],
             ['spond-b', SpondReply::Declined, 'Bin verhindert', null],
             ['spond-c', SpondReply::Declined, null, null],
-        ], array_map(static fn ($answer) => [$answer->spondId(), $answer->reply(), $answer->comment(), $answer->matchedSub()], $read->answers()));
+        ], array_map(static fn ($answer) => [$answer->spondId(), $answer->reply(), $answer->comment(), $answer->matchedSub()], $event->answers()));
         self::assertSame(1, $read->matchedCount());
         self::assertSame(3, $read->storedIdCount());
-        self::assertSame('Kasse', $read->options()[0]['name']);
-        self::assertCount(1, $read->options());
-        self::assertSame('Depotführung', $read->description());
+        self::assertSame('Kasse', $event->options()[0]['name']);
+        self::assertCount(1, $event->options());
+        self::assertSame('Depotführung', $event->description());
     }
 
     public function testLateUtcTimestampUsesTheZurichDate(): void
@@ -106,15 +107,15 @@ final class SpondIdMatcherTest extends TestCase
                 'name' => 'Historic Team Winterthur',
                 'members' => [],
             ],
-            'event' => [
+            'events' => [[
                 'spondId' => 'event-1',
                 'heading' => 'Spät',
                 'startTimestamp' => '2026-11-14T23:30:00Z',
                 'responses' => ['acceptedIds' => [], 'declinedIds' => [], 'unansweredIds' => []],
-            ],
+            ]],
         ], [], new \DateTimeImmutable('2026-11-26T08:00:00+01:00'));
 
-        self::assertSame('2026-11-15', $read->eventOn()->format('Y-m-d'));
+        self::assertSame('2026-11-15', $read->events()[0]->eventOn()->format('Y-m-d'));
         self::assertSame([], $read->people());
     }
 }

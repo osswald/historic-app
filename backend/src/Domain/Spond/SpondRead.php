@@ -150,7 +150,6 @@ class SpondRead
             $ids[$person->spondId()] = true;
         }
         foreach ($this->events as $event) {
-            $ids[$event->spondId()] = true;
             foreach ($event->answers() as $answer) {
                 $ids[$answer->spondId()] = true;
             }

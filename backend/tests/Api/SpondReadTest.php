@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Api;
 
+use App\Application\Spond\RecordSpondRead;
 use App\Application\Spond\SpondExportParser;
 use App\Application\Spond\SpondIdMatcher;
 use App\Application\Spond\SpondResponseMap;
@@ -54,15 +55,19 @@ final class SpondReadTest extends ApiTestCase
         $body = $this->jsonBody($client);
         self::assertTrue($body['read']['idsMatched']);
         self::assertSame('Historic Team Winterthur', $body['read']['groupName']);
-        self::assertSame('Führung inbahn', $body['read']['eventHeading']);
-        self::assertSame('2026-11-14', $body['read']['eventOn']);
+        self::assertSame(1, $body['read']['eventCount']);
+        self::assertSame('Führung inbahn', $body['read']['events'][0]['heading']);
+        self::assertSame('2026-11-14', $body['read']['events'][0]['eventOn']);
+        self::assertSame('2026-11-14', $body['read']['earliestOn']);
+        self::assertSame('2026-11-14', $body['read']['latestOn']);
         self::assertSame(3, $body['read']['memberCount']);
         self::assertSame(1, $body['read']['accepted']);
         self::assertSame(1, $body['read']['declined']);
         self::assertSame(1, $body['read']['unanswered']);
         self::assertSame(1, $body['read']['matchedCount']);
         self::assertSame(3, $body['read']['storedIdCount']);
-        self::assertSame(['Bin verhindert'], $body['read']['answerComments']);
+        self::assertSame(['Bin verhindert'], $body['read']['events'][0]['answerComments']);
+        self::assertSame(0, (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM event'));
         $encoded = json_encode($body, JSON_THROW_ON_ERROR);
         self::assertStringNotContainsString('auth0|vera', $encoded);
         self::assertStringNotContainsString('not-exported', $encoded);
@@ -77,6 +82,61 @@ final class SpondReadTest extends ApiTestCase
         $this->request($organizer, 'GET', '/api/v1/spond/read', token: null);
         self::assertResponseIsSuccessful();
         self::assertSame(1, $this->jsonBody($organizer)['read']['matchedCount']);
+    }
+
+    public function testALaterReadReplacesTheStoredEvents(): void
+    {
+        $client = $this->browser();
+        $record = self::getContainer()->get(RecordSpondRead::class);
+        self::assertInstanceOf(RecordSpondRead::class, $record);
+        $record($this->snapshot([
+            $this->event('event-probe', 'Führung inbahn', '2026-11-14', ['spond-a'], ['spond-b'], ['spond-c']),
+            $this->event('event-old', 'Alter Termin', '2024-05-01', ['spond-b'], [], ['spond-a']),
+        ]));
+
+        $em = self::getContainer()->get('doctrine.orm.entity_manager');
+        self::assertInstanceOf(EntityManagerInterface::class, $em);
+        self::assertSame(2, (int) $em->getConnection()->fetchOne('SELECT COUNT(*) FROM spond_event'));
+
+        $record($this->snapshot([
+            $this->event('event-new', 'Ausfahrt', '2025-06-02', ['spond-b'], ['spond-a'], ['spond-c'], 'Bin dabei'),
+            $this->event('event-older', 'Werkstatt', '2023-03-04', [], ['spond-c'], ['spond-a', 'spond-b']),
+        ]));
+
+        $connection = $em->getConnection();
+        self::assertSame(1, (int) $connection->fetchOne('SELECT COUNT(*) FROM spond_read'));
+        self::assertSame(2, (int) $connection->fetchOne('SELECT COUNT(*) FROM spond_event'));
+        self::assertSame(['Werkstatt', 'Ausfahrt'], $connection->fetchFirstColumn('SELECT heading FROM spond_event ORDER BY event_on'));
+        self::assertSame(0, (int) $connection->fetchOne("SELECT COUNT(*) FROM spond_event WHERE spond_id IN ('event-probe', 'event-old')"));
+        self::assertSame([
+            ['heading' => 'Ausfahrt', 'spond_id' => 'spond-a', 'reply' => 'declined', 'comment' => 'Bin dabei'],
+            ['heading' => 'Ausfahrt', 'spond_id' => 'spond-b', 'reply' => 'accepted', 'comment' => null],
+            ['heading' => 'Ausfahrt', 'spond_id' => 'spond-c', 'reply' => 'unanswered', 'comment' => null],
+            ['heading' => 'Werkstatt', 'spond_id' => 'spond-a', 'reply' => 'unanswered', 'comment' => null],
+            ['heading' => 'Werkstatt', 'spond_id' => 'spond-b', 'reply' => 'unanswered', 'comment' => null],
+            ['heading' => 'Werkstatt', 'spond_id' => 'spond-c', 'reply' => 'declined', 'comment' => null],
+        ], $connection->fetchAllAssociative('SELECT e.heading, a.spond_id, a.reply, a.comment FROM spond_answer a JOIN spond_event e ON e.id = a.event_id ORDER BY e.heading, a.spond_id'));
+        self::assertSame(0, (int) $connection->fetchOne('SELECT COUNT(*) FROM event'));
+
+        $this->request($client, 'GET', '/api/v1/spond/read');
+        self::assertResponseIsSuccessful();
+        $body = $this->jsonBody($client);
+        self::assertSame(2, $body['read']['eventCount']);
+        self::assertSame('2023-03-04', $body['read']['earliestOn']);
+        self::assertSame('2025-06-02', $body['read']['latestOn']);
+        self::assertSame('Ausfahrt', $body['read']['events'][0]['heading']);
+        self::assertSame('2025-06-02', $body['read']['events'][0]['eventOn']);
+        self::assertSame(1, $body['read']['events'][0]['accepted']);
+        self::assertSame(1, $body['read']['events'][0]['declined']);
+        self::assertSame(1, $body['read']['events'][0]['unanswered']);
+        self::assertSame('Werkstatt', $body['read']['events'][1]['heading']);
+        self::assertSame(1, $body['read']['accepted']);
+        self::assertSame(2, $body['read']['declined']);
+        self::assertSame(3, $body['read']['unanswered']);
+        $encoded = json_encode($body, JSON_THROW_ON_ERROR);
+        self::assertStringNotContainsString('event-probe', $encoded);
+        self::assertStringNotContainsString('spond-a', $encoded);
+        self::assertStringNotContainsString('@', $encoded);
     }
 
     public function testRequiresALogin(): void
@@ -109,23 +169,59 @@ final class SpondReadTest extends ApiTestCase
                     ['spondId' => 'spond-c'],
                 ],
             ],
-            'event' => [
-                'spondId' => 'event-1',
-                'heading' => 'Führung inbahn',
-                'startTimestamp' => '2026-11-14T09:30:00Z',
-                'description' => 'Depot',
-                'responses' => [
-                    'acceptedIds' => ['spond-a'],
-                    'declinedIds' => ['spond-b'],
-                    'unansweredIds' => ['spond-c'],
-                ],
-                'answerComments' => [
-                    ['spondId' => 'spond-b', 'comment' => 'Bin verhindert'],
-                ],
-                'options' => [
-                    ['spondId' => 'task-1', 'name' => 'Kasse', 'description' => null, 'accepted' => 0, 'declined' => 0, 'unanswered' => 0],
-                ],
+            'events' => [
+                $this->event('event-1', 'Führung inbahn', '2026-11-14', ['spond-a'], ['spond-b'], ['spond-c'], 'Bin verhindert', 'Depot'),
             ],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $events
+     * @return array<string, mixed>
+     */
+    private function snapshot(array $events): array
+    {
+        $export = $this->export();
+        $export['events'] = $events;
+
+        return $export;
+    }
+
+    /**
+     * @param list<string> $accepted
+     * @param list<string> $declined
+     * @param list<string> $unanswered
+     * @return array<string, mixed>
+     */
+    private function event(
+        string $spondId,
+        string $heading,
+        string $day,
+        array $accepted,
+        array $declined,
+        array $unanswered,
+        ?string $declinedComment = null,
+        ?string $description = null,
+    ): array {
+        $comments = [];
+        if ($declinedComment !== null && isset($declined[0])) {
+            $comments[] = ['spondId' => $declined[0], 'comment' => $declinedComment];
+        }
+
+        return [
+            'spondId' => $spondId,
+            'heading' => $heading,
+            'startTimestamp' => $day.'T09:30:00Z',
+            'description' => $description,
+            'responses' => [
+                'acceptedIds' => $accepted,
+                'declinedIds' => $declined,
+                'unansweredIds' => $unanswered,
+            ],
+            'answerComments' => $comments,
+            'options' => $spondId === 'event-1'
+                ? [['spondId' => 'task-1', 'name' => 'Kasse', 'description' => null, 'accepted' => 0, 'declined' => 0, 'unanswered' => 0]]
+                : [],
         ];
     }
 
