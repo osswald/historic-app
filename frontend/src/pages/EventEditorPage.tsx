@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
-import type { ClubEvent, FleetList } from '../api/types'
+import type { ClubEvent, FleetList, InvitationPerson } from '../api/types'
+import { useMember } from '../shell/context'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { useRegisterUnsaved } from '../forms/unsaved'
@@ -49,6 +50,7 @@ function dayIsBlank(day: DayDraft): boolean {
 export function EventEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const member = useMember()
   const editing = Boolean(id)
   const [title, setTitle] = useState('')
   const [clubs, setClubs] = useState<Array<'historic' | 'supporter'>>(['historic'])
@@ -62,6 +64,13 @@ export function EventEditorPage() {
   const [fleet, setFleet] = useState<FleetList['vehicles']>([])
   const [fleetReady, setFleetReady] = useState(false)
   const [vehicles, setVehicles] = useState<VehicleDraft[]>([])
+  const [invitedGroups, setInvitedGroups] = useState<string[]>([])
+  const [invitedPeople, setInvitedPeople] = useState<InvitationPerson[]>([])
+  const [excludedPeople, setExcludedPeople] = useState<InvitationPerson[]>([])
+  const [knownPeople, setKnownPeople] = useState<InvitationPerson[]>([])
+  const [groupDraft, setGroupDraft] = useState('')
+  const [personSub, setPersonSub] = useState('')
+  const [excludedSub, setExcludedSub] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [incomplete, setIncomplete] = useState<string | null>(null)
@@ -98,12 +107,16 @@ export function EventEditorPage() {
         vehicleId: vehicle.vehicleId,
         rentalStatus: vehicle.rentalStatus ?? '',
       })))
+      setInvitedGroups(event.invitations.groups)
+      setInvitedPeople(event.invitations.people)
+      setExcludedPeople(event.invitations.excluded)
       setLoaded(true)
     }).catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Veranstaltung konnte nicht geladen werden.'))
   }, [id])
 
   const snapshot = JSON.stringify({
     title, clubs, categories, status, internalDescription, publicDescription, publishToWebsite, days, vehicles,
+    invitedGroups, invitedPeople, excludedPeople,
   })
   useEffect(() => {
     if (!loaded) return
@@ -116,6 +129,9 @@ export function EventEditorPage() {
     api<{ places: Array<{ name: string }> }>('/api/v1/places')
       .then((body) => setPlaces(body.places.map((place) => place.name)))
       .catch(() => setPlaces([]))
+    api<{ people: InvitationPerson[] }>('/api/v1/people')
+      .then((body) => setKnownPeople(body.people))
+      .catch(() => setKnownPeople([]))
     api<FleetList>('/api/v1/vehicles')
       .then((body) => {
         setFleet(body.vehicles)
@@ -141,6 +157,27 @@ export function EventEditorPage() {
 
   function cancel() {
     void navigate(editing ? `/veranstaltungen/${id}` : '/veranstaltungen')
+  }
+
+  function addGroup() {
+    const name = groupDraft.trim()
+    setGroupDraft('')
+    if (name === '' || invitedGroups.includes(name)) return
+    setInvitedGroups((current) => [...current, name])
+  }
+
+  function addNamed(sub: string, target: 'invite' | 'exclude') {
+    const person = knownPeople.find((item) => item.sub === sub)
+    if (!person) return
+    if (target === 'invite') {
+      setExcludedPeople((current) => current.filter((item) => item.sub !== sub))
+      setInvitedPeople((current) => current.some((item) => item.sub === sub) ? current : [...current, person])
+      setPersonSub('')
+      return
+    }
+    setInvitedPeople((current) => current.filter((item) => item.sub !== sub))
+    setExcludedPeople((current) => current.some((item) => item.sub === sub) ? current : [...current, person])
+    setExcludedSub('')
   }
 
   async function save(event: FormEvent) {
@@ -179,6 +216,11 @@ export function EventEditorPage() {
             description: point.description,
           })),
       })),
+      invitations: {
+        groups: invitedGroups,
+        people: invitedPeople.map((person) => ({ sub: person.sub })),
+        excluded: excludedPeople.map((person) => ({ sub: person.sub })),
+      },
       ...(fleetReady ? {
         vehicles: vehicles
           .filter((vehicle) => vehicle.vehicleId !== '')
@@ -341,9 +383,55 @@ export function EventEditorPage() {
             </div>
           </div>
           <div className="panel">
-            <div className="panel-head"><h2>Sichtbarkeit</h2></div>
+            <div className="panel-head"><h2>Einladungen</h2></div>
             <div className="panel-inner">
-              <div className="note">Entwürfe bleiben für gewöhnliche Mitglieder unsichtbar. Veröffentlichte Anlässe sehen angemeldete Mitglieder. Einladungen nach Auth0-Gruppen folgen, sobald die Claims bestätigt sind.</div>
+              <div className="note">Entwürfe sehen Organisatoren der zugeordneten Vereine. Ohne Liste sehen die Mitglieder dieser Vereine den veröffentlichten Anlass. Gruppen gelten für kommende Anlässe und folgen der aktuellen Gruppenzugehörigkeit. Ausgeschlossene Personen sehen den Anlass nicht. Es wird keine E-Mail verschickt.</div>
+              <Field error={errors['invitations.groups']} label="Gruppen">
+                <div className="toolbar">
+                  <input aria-label="Gruppe" className="input" list="session-groups" placeholder="Gruppe" value={groupDraft} onChange={(event) => setGroupDraft(event.target.value)} />
+                  <button className="btn small light" type="button" onClick={addGroup}>Hinzufügen</button>
+                </div>
+              </Field>
+              <datalist id="session-groups">
+                {(member?.groups ?? []).map((group) => <option key={group} value={group} />)}
+              </datalist>
+              {invitedGroups.map((group) => (
+                <div className="item" key={group}>
+                  <div><b>{group}</b><small>Gruppe</small></div>
+                  <button className="btn small light" type="button" onClick={() => setInvitedGroups((current) => current.filter((item) => item !== group))}>Entfernen</button>
+                </div>
+              ))}
+              <Field error={errors['invitations.people']} label="Personen">
+                <div className="toolbar">
+                  <select aria-label="Person einladen" className="input" value={personSub} onChange={(event) => setPersonSub(event.target.value)}>
+                    <option value="">Bekannte Person</option>
+                    {knownPeople.map((person) => <option key={person.sub} value={person.sub}>{person.name}</option>)}
+                  </select>
+                  <button className="btn small light" type="button" onClick={() => addNamed(personSub, 'invite')}>Einladen</button>
+                </div>
+              </Field>
+              {knownPeople.length === 0 ? <p className="muted">Noch keine bekannte Person. Gruppen können trotzdem eingeladen werden.</p> : null}
+              {invitedPeople.map((person) => (
+                <div className="item" key={person.sub}>
+                  <div><b>{person.name}</b><small>Eingeladen</small></div>
+                  <button className="btn small light" type="button" onClick={() => setInvitedPeople((current) => current.filter((item) => item.sub !== person.sub))}>Entfernen</button>
+                </div>
+              ))}
+              <Field error={errors['invitations.excluded']} label="Ausschliessen">
+                <div className="toolbar">
+                  <select aria-label="Person ausschliessen" className="input" value={excludedSub} onChange={(event) => setExcludedSub(event.target.value)}>
+                    <option value="">Bekannte Person</option>
+                    {knownPeople.map((person) => <option key={person.sub} value={person.sub}>{person.name}</option>)}
+                  </select>
+                  <button className="btn small light" type="button" onClick={() => addNamed(excludedSub, 'exclude')}>Ausschliessen</button>
+                </div>
+              </Field>
+              {excludedPeople.map((person) => (
+                <div className="item" key={person.sub}>
+                  <div><b>{person.name}</b><small>Ausgeschlossen</small></div>
+                  <button className="btn small light" type="button" onClick={() => setExcludedPeople((current) => current.filter((item) => item.sub !== person.sub))}>Entfernen</button>
+                </div>
+              ))}
             </div>
           </div>
         </div>

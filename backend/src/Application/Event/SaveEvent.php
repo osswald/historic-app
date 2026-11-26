@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Event;
 
 use App\Application\InvalidRequest;
+use App\Application\Membership\ClubScope;
 use App\Application\ZurichClock;
 use App\Domain\Event\Club;
 use App\Domain\Event\Event;
@@ -24,6 +25,8 @@ final class SaveEvent
     public function __construct(
         private EventRepository $events,
         private EventCatalog $catalog,
+        private ClubScope $clubs,
+        private KnownPeople $people,
         private PlaceDirectory $places,
         private VehicleRepository $vehicles,
         private AuditRecorder $audit,
@@ -36,7 +39,8 @@ final class SaveEvent
     public function create(MemberUser $actor, array $payload): Event
     {
         $this->assertOrganizer($actor);
-        $input = $this->normalize($payload);
+        $input = $this->normalize($payload, null, $actor);
+        $this->clubs->assertAssignable($actor, $input['clubs']);
         $now = $this->clock->now();
         $event = new Event(
             $input['title'],
@@ -53,6 +57,9 @@ final class SaveEvent
         if ($input['vehicles'] !== null) {
             $event->replaceAssignedVehicles($input['vehicles']);
         }
+        if ($input['invitations'] !== null) {
+            $event->replaceInvitations($input['invitations']['groups'], $input['invitations']['people'], $input['invitations']['excluded']);
+        }
         $this->events->add($event);
         $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'create', null, $event->toAudit(), $now);
         $this->entityManager->flush();
@@ -66,7 +73,8 @@ final class SaveEvent
         $this->assertOrganizer($actor);
         $event = $this->catalog->visible($id, $actor);
         $before = $event->toAudit();
-        $input = $this->normalize($payload);
+        $input = $this->normalize($payload, $event, $actor);
+        $this->clubs->assertAssignable($actor, $input['clubs']);
         $now = $this->clock->now();
         $event->change(
             $input['title'],
@@ -82,6 +90,9 @@ final class SaveEvent
         $this->syncDays($event, $input['days']);
         if ($input['vehicles'] !== null) {
             $event->replaceAssignedVehicles($input['vehicles']);
+        }
+        if ($input['invitations'] !== null) {
+            $event->replaceInvitations($input['invitations']['groups'], $input['invitations']['people'], $input['invitations']['excluded']);
         }
         $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'update', $before, $event->toAudit(), $now);
         $this->entityManager->flush();
@@ -115,10 +126,11 @@ final class SaveEvent
      *         location: ?string,
      *         meetingPoints: list<array{place: Place, meetsAt: \DateTimeImmutable, description: ?string}>
      *     }>,
-     *     vehicles: ?list<array{vehicle: Vehicle, rentalStatus: ?string}>
+     *     vehicles: ?list<array{vehicle: Vehicle, rentalStatus: ?string}>,
+     *     invitations: ?array{groups: list<string>, people: list<array{sub: string, name: string}>, excluded: list<array{sub: string, name: string}>}
      * }
      */
-    private function normalize(array $payload): array
+    private function normalize(array $payload, ?Event $existing, MemberUser $actor): array
     {
         $errors = [];
         $title = trim((string) ($payload['title'] ?? ''));
@@ -192,6 +204,9 @@ final class SaveEvent
             $errors['days'] = 'Bitte mindestens einen Veranstaltungstag angeben.';
         }
         $vehicles = array_key_exists('vehicles', $payload) ? $this->vehicles($payload['vehicles'], $errors) : null;
+        $invitations = array_key_exists('invitations', $payload)
+            ? $this->invitations($payload['invitations'], $existing, $actor, $errors)
+            : null;
         if ($location = $days[0]['location'] ?? null) {
             $this->rememberPlace($location);
         }
@@ -216,7 +231,83 @@ final class SaveEvent
             'publishToWebsite' => (bool) ($payload['publishToWebsite'] ?? false),
             'days' => $days,
             'vehicles' => $vehicles,
+            'invitations' => $invitations,
         ];
+    }
+
+    /**
+     * @param array<string, string> $errors
+     * @return array{groups: list<string>, people: list<array{sub: string, name: string}>, excluded: list<array{sub: string, name: string}>}
+     */
+    private function invitations(mixed $payload, ?Event $existing, MemberUser $actor, array &$errors): array
+    {
+        if (!is_array($payload)) {
+            $errors['invitations'] = 'Die Einladung ist ungültig.';
+
+            return ['groups' => [], 'people' => [], 'excluded' => []];
+        }
+        $groups = [];
+        foreach ((array) ($payload['groups'] ?? []) as $value) {
+            $group = trim((string) $value);
+            if ($group === '') {
+                continue;
+            }
+            if (mb_strlen($group) > 80) {
+                $errors['invitations.groups'] = 'Ein Gruppenname darf höchstens 80 Zeichen haben.';
+                continue;
+            }
+            $groups[] = $group;
+        }
+        $people = $this->namedPeople($payload['people'] ?? [], 'invitations.people', $existing, $actor, $errors);
+        $excluded = $this->namedPeople($payload['excluded'] ?? [], 'invitations.excluded', $existing, $actor, $errors);
+        $invitedSubs = array_column($people, 'sub');
+        foreach ($excluded as $person) {
+            if (in_array($person['sub'], $invitedSubs, true)) {
+                $errors['invitations.people'] = 'Eine Person kann nicht gleichzeitig eingeladen und ausgeschlossen sein.';
+                break;
+            }
+        }
+
+        return [
+            'groups' => array_values(array_unique($groups)),
+            'people' => $people,
+            'excluded' => $excluded,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $errors
+     * @return list<array{sub: string, name: string}>
+     */
+    private function namedPeople(mixed $rows, string $field, ?Event $existing, MemberUser $actor, array &$errors): array
+    {
+        if (!is_array($rows)) {
+            $errors[$field] = 'Die Personenliste ist ungültig.';
+
+            return [];
+        }
+        $people = [];
+        $seen = [];
+        foreach ($rows as $row) {
+            $sub = '';
+            if (is_string($row)) {
+                $sub = trim($row);
+            } elseif (is_array($row)) {
+                $sub = trim((string) ($row['sub'] ?? ''));
+            }
+            if ($sub === '' || isset($seen[$sub])) {
+                continue;
+            }
+            $name = $this->people->name($actor, $existing, $sub);
+            if ($name === null) {
+                $errors[$field] = 'Nur Personen, die bereits geantwortet oder eingeladen wurden.';
+                continue;
+            }
+            $seen[$sub] = true;
+            $people[] = ['sub' => $sub, 'name' => $name];
+        }
+
+        return $people;
     }
 
     /** @param list<array<string, mixed>> $days */

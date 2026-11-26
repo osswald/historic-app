@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react'
-import { startDevSession } from '../auth/session'
 
 const NOTICES: Record<string, string> = {
   fehlgeschlagen: 'Die Anmeldung hat nicht geklappt. Bitte versuche es erneut.',
-  'nicht-bereit': 'Die Auth0-Anmeldung ist noch nicht eingerichtet.',
+  'nicht-bereit': 'Die Anmeldung ist noch nicht eingerichtet.',
 }
 
-export function LoginPage({ checking = false, onLogin }: { checking?: boolean; onLogin: () => void }) {
+export function LoginPage({ checking = false }: { checking?: boolean }) {
   const [notice] = useState(() => NOTICES[new URLSearchParams(window.location.search).get('anmeldung') ?? ''] ?? null)
 
   useEffect(() => {
@@ -41,10 +40,9 @@ export function LoginPage({ checking = false, onLogin }: { checking?: boolean; o
               <>
                 {notice ? <div className="banner-error">{notice}</div> : null}
                 <p>Die Vereinsplattform ist den Mitgliedern des SBB Historic-Team Winterthur und des Supporterclubs vorbehalten.</p>
-                <p className="muted">Die Anmeldung läuft über das Vereinslogin. Die Demo-Anmeldung bleibt vorerst zusätzlich verfügbar.</p>
+                <p className="muted">Die Anmeldung läuft über Historic Winterthur SSO.</p>
                 <div className="login-actions">
-                  <a className="btn primary" href="/api/v1/auth/login">Mit Auth0 anmelden</a>
-                  <button className="btn light" type="button" onClick={() => { startDevSession(); onLogin() }}>Als Demomitglied weiter</button>
+                  <a className="btn primary" href="/api/v1/auth/login">Historic Winterthur SSO</a>
                 </div>
               </>
             )}

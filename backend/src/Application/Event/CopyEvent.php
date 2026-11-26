@@ -62,6 +62,8 @@ final class CopyEvent
             'vehicle' => $link->vehicle(),
             'rentalStatus' => $link->rentalStatus(),
         ], $source->assignedVehicles()));
+        // V-11: Gruppen sind eine Einstellung. Namentliche Ein- und Ausschlüsse sind persönliche Zuordnungen und werden nicht mitkopiert.
+        $copy->replaceInvitations($source->invitedGroups(), [], []);
         $this->events->add($copy);
         $this->audit->record($actor->getUserIdentifier(), 'event', $copy->id(), 'create', null, $copy->toAudit(), $now);
         $this->entityManager->flush();

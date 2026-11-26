@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Security;
 
+use App\Domain\Event\Club;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -48,6 +49,7 @@ final class MemberSession
             'sub' => $user->getUserIdentifier(),
             'displayName' => $user->displayName(),
             'groups' => $user->groups(),
+            'clubs' => array_map(static fn (Club $club): string => $club->value, $user->clubs()),
         ];
         $picture = $user->picture();
         if ($picture !== null) {
@@ -101,6 +103,13 @@ final class MemberSession
             }
         }
 
-        return new MemberUser($sub, $name, $names, MemberUser::normalizePicture($payload['picture'] ?? null));
+        $clubs = [];
+        foreach ((array) ($payload['clubs'] ?? []) as $club) {
+            if (is_string($club) && $club !== '') {
+                $clubs[] = $club;
+            }
+        }
+
+        return new MemberUser($sub, $name, $names, MemberUser::normalizePicture($payload['picture'] ?? null), $clubs);
     }
 }

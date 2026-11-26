@@ -2,6 +2,7 @@ export type Member = {
   sub: string
   displayName: string
   groups: string[]
+  clubs: Array<'historic' | 'supporter'>
   canOrganize: boolean
   canPlanRides: boolean
   canEditFleet: boolean
@@ -216,8 +217,20 @@ export type EventDay = {
   line1: string
   myResponse: Answer | null
   myComment: string | null
-  summary: { yes: number; no: number }
+  summary: { yes: number; no: number; pending: number }
+  pending: Array<{ name: string }>
   responses: DayResponse[]
+}
+
+export type InvitationPerson = {
+  sub: string
+  name: string
+}
+
+export type EventInvitations = {
+  groups: string[]
+  people: InvitationPerson[]
+  excluded: InvitationPerson[]
 }
 
 export type ClubEvent = {
@@ -232,6 +245,7 @@ export type ClubEvent = {
   publicDescription: string | null
   location: string | null
   publishToWebsite: boolean
+  invitations: EventInvitations
   vehicles: EventVehicle[]
   eyebrow: string
   card: EventCard | null

@@ -49,7 +49,6 @@ function ShellLayout() {
 
 export default function App() {
   const [authed, setAuthed] = useState<boolean | null>(() => (sessionToken() ? true : null))
-  const [generation, setGeneration] = useState(0)
   const [member, setMember] = useState<Member | null>(null)
   const [toast, setToast] = useState<string | null>(null)
 
@@ -79,7 +78,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [generation])
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -88,7 +87,7 @@ export default function App() {
   }, [toast])
 
   if (authed !== true) {
-    return <LoginPage checking={authed === null} onLogin={() => { setAuthed(true); setGeneration((value) => value + 1) }} />
+    return <LoginPage checking={authed === null} />
   }
 
   return (

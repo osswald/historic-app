@@ -14,6 +14,9 @@ export function CalendarPage() {
   const [cursor, setCursor] = useState(() => new Date())
   const [mode, setMode] = useState<Mode>(() => window.matchMedia('(max-width: 700px)').matches ? 'list' : 'month')
   const [mine, setMine] = useState(false)
+  const [category, setCategory] = useState('')
+  const [person, setPerson] = useState('')
+  const [group, setGroup] = useState('')
   const member = useMember()
 
   useEffect(() => {
@@ -22,9 +25,27 @@ export function CalendarPage() {
       .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Der Kalender konnte nicht geladen werden.'))
   }, [])
 
+  const categories = useMemo(
+    () => [...new Set(events.flatMap((event) => event.categories))].sort((a, b) => a.localeCompare(b, 'de')),
+    [events],
+  )
+  const people = useMemo(() => {
+    const names = events.flatMap((event) => [
+      ...event.invitations.people.map((item) => item.name),
+      ...event.days.flatMap((day) => [...day.responses.map((response) => response.name), ...day.pending.map((item) => item.name)]),
+    ])
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'de'))
+  }, [events])
+  const groups = member?.groups ?? []
   const shown = useMemo(
-    () => events.filter((event) => !mine || event.days.some((day) => day.myResponse === 'yes')),
-    [events, mine],
+    () => events.filter((event) => {
+      if (mine && !event.days.some((day) => day.myResponse === 'yes')) return false
+      if (category !== '' && !event.categories.includes(category)) return false
+      if (person !== '' && !event.invitations.people.some((item) => item.name === person) && !event.days.some((day) => day.responses.some((response) => response.name === person) || day.pending.some((item) => item.name === person))) return false
+      if (group !== '' && !event.invitations.groups.includes(group)) return false
+      return true
+    }),
+    [events, mine, category, person, group],
   )
 
   const year = cursor.getFullYear()
@@ -54,6 +75,20 @@ export function CalendarPage() {
             <button className={mode === 'list' ? 'btn small' : 'btn small light'} type="button" onClick={() => setMode('list')}>Liste</button>
             <button className={mine ? 'btn small' : 'btn small light'} type="button" onClick={() => setMine((value) => !value)}>Meine Termine</button>
           </div>
+        </div>
+        <div className="toolbar" style={{ padding: '0 16px 12px' }}>
+          <select aria-label="Kategorie" className="input" value={category} onChange={(event) => setCategory(event.target.value)}>
+            <option value="">Alle Kategorien</option>
+            {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select aria-label="Person" className="input" value={person} onChange={(event) => setPerson(event.target.value)}>
+            <option value="">Alle Personen</option>
+            {people.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
+          <select aria-label="Gruppe" className="input" value={group} onChange={(event) => setGroup(event.target.value)}>
+            <option value="">Alle Gruppen</option>
+            {groups.map((item) => <option key={item} value={item}>{item}</option>)}
+          </select>
         </div>
         {mode === 'month' ? <Month events={shown} month={month} year={year} /> : null}
         {mode === 'week' ? <Week events={shown} cursor={cursor} /> : null}

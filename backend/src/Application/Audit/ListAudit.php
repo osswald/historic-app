@@ -8,9 +8,11 @@ use App\Application\Gastronomy\GastroAccess;
 use App\Application\NotFound;
 use App\Domain\Audit\AuditEntry;
 use App\Domain\Audit\AuditEntryRepository;
+use App\Domain\Event\Event;
 use App\Domain\Event\EventRepository;
 use App\Domain\Fleet\VehicleRepository;
 use App\Domain\Gastronomy\GastroPlanRepository;
+use App\Domain\Poll\Poll;
 use App\Domain\Poll\PollRepository;
 use App\Domain\Ride\RideRepository;
 use App\Security\MemberUser;
@@ -50,8 +52,8 @@ final class ListAudit
     private function assertCanRead(MemberUser $actor, string $type, string $id): void
     {
         $allowed = match ($type) {
-            'event' => $this->events->byId($id) !== null && ($actor->isAdmin() || $actor->isOrganizer()),
-            'poll' => $this->polls->byId($id) !== null && ($actor->isAdmin() || $actor->isOrganizer()),
+            'event' => $this->eventReadable($actor, $id),
+            'poll' => $this->pollReadable($actor, $id),
             'ride' => $this->rides->get($id) !== null && $actor->canPlanRides(),
             'vehicle' => $this->vehicles->get($id) !== null && $actor->canEditFleet(),
             'gastro_plan' => $this->canReadGastro($actor, $id),
@@ -73,6 +75,32 @@ final class ListAudit
             throw new NotFound('Der Änderungsverlauf wurde nicht gefunden.');
         }
         throw new AccessDeniedException('Den Änderungsverlauf sehen Administratoren und die Personen, die diese Angaben bearbeiten dürfen.');
+    }
+
+    private function eventReadable(MemberUser $actor, string $id): bool
+    {
+        $event = $this->events->byId($id);
+        if (!$event instanceof Event) {
+            return false;
+        }
+        if ($actor->isAdmin()) {
+            return true;
+        }
+
+        return $actor->isOrganizer() && $actor->sharesClub($event->clubs());
+    }
+
+    private function pollReadable(MemberUser $actor, string $id): bool
+    {
+        $poll = $this->polls->byId($id);
+        if (!$poll instanceof Poll) {
+            return false;
+        }
+        if ($actor->isAdmin()) {
+            return true;
+        }
+
+        return $actor->isOrganizer() && $actor->sharesClub($poll->clubs());
     }
 
     private function canReadGastro(MemberUser $actor, string $id): bool

@@ -57,7 +57,23 @@ final class Auth0Claims
             $groups = $this->groups($id, $groupsClaim);
         }
 
-        return new MemberUser($sub, $this->name($access, $id, $sub), $groups, $this->picture($access, $id));
+        $clubToken = $id instanceof \stdClass ? $id : $access;
+
+        return new MemberUser($sub, $this->name($access, $id, $sub), $groups, $this->picture($access, $id), $this->clubs($clubToken));
+    }
+
+    /** @return list<string> */
+    private function clubs(\stdClass $token): array
+    {
+        $claim = $token->{'https://historic-winterthur.ch/clubs'} ?? null;
+        if (is_string($claim)) {
+            $claim = [$claim];
+        }
+        if (!is_array($claim)) {
+            return [];
+        }
+
+        return MemberUser::normalizeClubs($claim);
     }
 
     /** @return list<string> */

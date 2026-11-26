@@ -7,6 +7,7 @@ namespace App\Api\V1;
 use App\Application\Event\CopyEvent;
 use App\Application\Event\EventCatalog;
 use App\Application\Event\EventPresenter;
+use App\Application\Event\KnownPeople;
 use App\Application\Event\RecordAttendance;
 use App\Application\Event\SaveEvent;
 use App\Application\ZurichClock;
@@ -17,6 +18,12 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class EventController extends ApiController
 {
+    #[Route('/api/v1/people', name: 'api_people', methods: ['GET'])]
+    public function people(KnownPeople $people): Response
+    {
+        return $this->jsonData(['people' => $people->forMember($this->member())]);
+    }
+
     #[Route('/api/v1/events', name: 'api_events', methods: ['GET'])]
     public function index(EventCatalog $catalog, EventPresenter $presenter, ZurichClock $clock): Response
     {

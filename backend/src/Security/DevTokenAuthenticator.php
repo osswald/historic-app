@@ -27,13 +27,17 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
         private string $displayName,
         #[Autowire('%env(DEV_USER_GROUPS)%')]
         private string $groups,
+        #[Autowire('%env(default::DEV_USER_CLUBS)%')]
+        private string $clubs,
+        #[Autowire('%kernel.environment%')]
+        private string $environment,
     ) {
     }
 
     public function supports(Request $request): ?bool
     {
-        // AUTH_DEV_MODE keeps the demo login beside Auth0, including on the public host.
-        if (!$this->enabled) {
+        // Production never accepts the demo token, even if AUTH_DEV_MODE is left on.
+        if ($this->environment === 'prod' || !$this->enabled) {
             return false;
         }
 
@@ -43,11 +47,14 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
     public function authenticate(Request $request): Passport
     {
         $groups = array_values(array_filter(array_map('trim', explode(',', $this->groups))));
+        $clubs = array_values(array_filter(array_map('trim', explode(',', $this->clubs))));
 
         return new SelfValidatingPassport(new UserBadge(self::SUBJECT, fn (): MemberUser => new MemberUser(
             self::SUBJECT,
             $this->displayName,
             $groups,
+            null,
+            $clubs,
         )));
     }
 

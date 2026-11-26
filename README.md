@@ -21,7 +21,7 @@ cd frontend
 npm run dev
 ```
 
-Die Oberfläche liegt auf http://127.0.0.1:5173. «Als Demomitglied weiter» führt in die Plattform. Auth0 übernimmt die Anmeldung, sobald `AUTH0_DOMAIN` und `AUTH0_AUDIENCE` gesetzt sind. Auf https://app.historic-winterthur.ch bleibt die Demo-Anmeldung vorerst an (`APP_ENV=prod`, `AUTH_DEV_MODE=1`) und wird danach auf `0` gestellt.
+Die Oberfläche liegt auf http://127.0.0.1:5173. Die Anmeldung läuft über Historic Winterthur SSO, sobald `AUTH0_DOMAIN` und `AUTH0_AUDIENCE` gesetzt sind. Auf https://app.historic-winterthur.ch ist die Demo-Anmeldung aus (`APP_ENV=prod`, `AUTH_DEV_MODE=0`).
 
 ## Tests
 

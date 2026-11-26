@@ -144,6 +144,21 @@ export function EventDetailPage() {
                 </div>
               </div>
             ) : null}
+            <div className="panel">
+              <div className="panel-head"><h2>Einladungen</h2></div>
+              <div className="panel-inner" style={{ paddingTop: 0 }}>
+                {event.invitations.groups.length === 0 && event.invitations.people.length === 0 ? (
+                  <p className="muted">Alle Mitglieder der zugeordneten Vereine.</p>
+                ) : null}
+                {event.invitations.groups.map((group) => (
+                  <div className="item" key={group}><div><b>{group}</b><small>Gruppe</small></div></div>
+                ))}
+                {event.invitations.people.map((person) => (
+                  <div className="item" key={person.sub}><div><b>{person.name}</b><small>Person</small></div></div>
+                ))}
+                {event.invitations.excluded.length > 0 ? <p className="muted">Ausgeschlossen: {event.invitations.excluded.map((person) => person.name).join(', ')}</p> : null}
+              </div>
+            </div>
             {member?.canOrganize ? <AuditHistory entityId={event.id} entityType="event" /> : null}
             <div className="panel">
               <div className="panel-head"><h2>Verknüpfte Bereiche</h2></div>
@@ -186,7 +201,8 @@ function DayAnswer({
           <span className="muted">Kommentar, optional</span>
           <input className="input" style={{ marginTop: 6 }} value={comment} onChange={(event) => setComment(event.target.value)} />
         </label>
-        <p className="muted">Alle eingeladenen Mitglieder können die Rückmeldungen sehen. Ja {day.summary.yes} · Nein {day.summary.no}</p>
+        <p className="muted">Alle eingeladenen Mitglieder können die Rückmeldungen sehen. Ja {day.summary.yes} · Nein {day.summary.no} · Ausstehend {day.summary.pending}</p>
+        {day.pending.length > 0 ? <p className="muted">Ausstehend: {day.pending.map((person) => person.name).join(', ')}</p> : null}
         {day.responses.length === 0 ? <p className="muted">Noch keine Rückmeldung.</p> : null}
         {day.responses.map((response) => (
           <div className="item" key={response.name + response.answer}>

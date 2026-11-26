@@ -28,11 +28,15 @@ export function EventsPage() {
         event.location ?? '',
         event.categories.join(' '),
         event.clubLabels.join(' '),
+        event.invitations.groups.join(' '),
+        event.invitations.people.map((person) => person.name).join(' '),
         event.days.map((day) => [
           day.date,
           day.line1,
           day.location ?? '',
           day.meetingPoints.map((point) => `${point.placeName} ${point.description ?? ''}`).join(' '),
+          day.responses.map((response) => response.name).join(' '),
+          day.pending.map((person) => person.name).join(' '),
         ].join(' ')).join(' '),
       ].join(' ').toLowerCase()
       return haystack.includes(needle)

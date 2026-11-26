@@ -16,6 +16,7 @@ final class Auth0ClaimsTest extends TestCase
     private const AUDIENCE = 'https://app.historic-winterthur.ch/api';
     private const CLIENT = 'test-client';
     private const GROUPS = 'https://historic-winterthur.ch/groups';
+    private const CLUBS = 'https://historic-winterthur.ch/clubs';
 
     private Auth0Claims $claims;
 
@@ -120,6 +121,47 @@ final class Auth0ClaimsTest extends TestCase
 
         self::assertSame(['Vorstand'], $member->groups());
         self::assertTrue($member->isOrganizer());
+    }
+
+    public function testClubsComeOnlyFromTheIdToken(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            self::CLUBS => ['supporter'],
+            self::GROUPS => ['Mitglieder'],
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            self::CLUBS => ['historic', 'supporter', 'unbekannt'],
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame(['historic', 'supporter'], array_map(static fn ($club) => $club->value, $member->clubs()));
+    }
+
+    public function testMissingClubClaimSeesNoClubs(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            self::CLUBS => ['historic'],
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame([], $member->clubs());
+        self::assertSame([], $member->profile()['clubs']);
     }
 
     public function testAdminGroupKeepsTheExistingRoleMapping(): void

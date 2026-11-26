@@ -9,7 +9,6 @@ use App\Application\NotFound;
 use App\Application\ZurichClock;
 use App\Domain\Event\Attendance;
 use App\Domain\Event\EventDayRepository;
-use App\Domain\Event\EventStatus;
 use App\Infrastructure\Audit\AuditRecorder;
 use App\Security\MemberUser;
 use Doctrine\ORM\EntityManagerInterface;
@@ -18,6 +17,7 @@ final class RecordAttendance
 {
     public function __construct(
         private EventDayRepository $days,
+        private EventAccess $access,
         private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
@@ -27,10 +27,7 @@ final class RecordAttendance
     public function __invoke(MemberUser $actor, string $dayId, string $answer, ?string $comment): void
     {
         $day = $this->days->byId($dayId);
-        if ($day === null || !$day->event()->isVisibleTo($actor->isOrganizer())) {
-            throw new NotFound('Veranstaltungstag nicht gefunden.');
-        }
-        if ($day->event()->status() === EventStatus::Draft && !$actor->isOrganizer()) {
+        if ($day === null || !$this->access->canSee($day->event(), $actor, $this->clock->today())) {
             throw new NotFound('Veranstaltungstag nicht gefunden.');
         }
 

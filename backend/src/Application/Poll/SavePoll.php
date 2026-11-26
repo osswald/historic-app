@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Poll;
 
 use App\Application\InvalidRequest;
+use App\Application\Membership\ClubScope;
 use App\Application\ZurichClock;
 use App\Domain\Event\Club;
 use App\Domain\Poll\Daypart;
@@ -23,6 +24,7 @@ final class SavePoll
     public function __construct(
         private PollRepository $polls,
         private PollCatalog $catalog,
+        private ClubScope $clubs,
         private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
@@ -34,6 +36,7 @@ final class SavePoll
     {
         $this->assertOrganizer($actor);
         $input = $this->normalize($payload, null);
+        $this->clubs->assertAssignable($actor, $input['clubs']);
         $now = $this->clock->now();
         $poll = new Poll(
             $input['title'],
@@ -59,6 +62,7 @@ final class SavePoll
         $this->assertOrganizer($actor);
         $poll = $this->catalog->visible($id, $actor);
         $input = $this->normalize($payload, $poll);
+        $this->clubs->assertAssignable($actor, $input['clubs']);
         $before = $poll->toAudit();
         $now = $this->clock->now();
         $poll->change(

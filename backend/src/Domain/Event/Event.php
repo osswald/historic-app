@@ -60,6 +60,18 @@ class Event
     #[ORM\OrderBy(['sortOrder' => 'ASC'])]
     private Collection $assignedVehicles;
 
+    /** @var list<string> */
+    #[ORM\Column(type: Types::JSON)]
+    private array $invitedGroups = [];
+
+    /** @var list<array{sub: string, name: string}> */
+    #[ORM\Column(type: Types::JSON)]
+    private array $invitedPeople = [];
+
+    /** @var list<array{sub: string, name: string}> */
+    #[ORM\Column(type: Types::JSON)]
+    private array $excludedPeople = [];
+
     /**
      * @param list<string> $clubs
      * @param list<string> $categories
@@ -170,9 +182,99 @@ class Event
         return null;
     }
 
-    public function isVisibleTo(bool $organizer): bool
+    /** @return list<string> */
+    public function invitedGroups(): array
     {
-        return $organizer || $this->status !== EventStatus::Draft;
+        return array_values($this->invitedGroups);
+    }
+
+    /** @return list<array{sub: string, name: string}> */
+    public function invitedPeople(): array
+    {
+        return array_values($this->invitedPeople);
+    }
+
+    /** @return list<array{sub: string, name: string}> */
+    public function excludedPeople(): array
+    {
+        return array_values($this->excludedPeople);
+    }
+
+    public function hasIncludeRules(): bool
+    {
+        return $this->invitedGroups !== [] || $this->invitedPeople !== [];
+    }
+
+    public function includesPerson(string $sub): bool
+    {
+        foreach ($this->invitedPeople as $person) {
+            if ($person['sub'] === $sub) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<string> $groups */
+    public function includesGroup(array $groups): bool
+    {
+        foreach ($this->invitedGroups as $group) {
+            if (in_array($group, $groups, true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function excludesPerson(string $sub): bool
+    {
+        foreach ($this->excludedPeople as $person) {
+            if ($person['sub'] === $sub) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function isUpcoming(\DateTimeImmutable $today): bool
+    {
+        if ($this->days->isEmpty()) {
+            return true;
+        }
+        $todayKey = $today->format('Y-m-d');
+        foreach ($this->days() as $day) {
+            if ($day->occursOn()->format('Y-m-d') >= $todayKey) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function answeredBy(string $sub): bool
+    {
+        foreach ($this->days() as $day) {
+            if ($day->responseFor($sub) !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<string> $groups
+     * @param list<array{sub: string, name: string}> $people
+     * @param list<array{sub: string, name: string}> $excluded
+     */
+    public function replaceInvitations(array $groups, array $people, array $excluded): void
+    {
+        $this->invitedGroups = array_values(array_unique($groups));
+        $this->invitedPeople = array_values($people);
+        $this->excludedPeople = array_values($excluded);
     }
 
     public function sortKey(): string
@@ -318,6 +420,11 @@ class Event
             'publicDescription' => $this->publicDescription,
             'location' => $this->location,
             'publishToWebsite' => $this->publishToWebsite,
+            'invitations' => [
+                'groups' => $this->invitedGroups,
+                'people' => $this->invitedPeople,
+                'excluded' => $this->excludedPeople,
+            ],
             'days' => array_map(static fn (EventDay $day): array => [
                 'id' => $day->id(),
                 'date' => $day->occursOn()->format('Y-m-d'),

@@ -10,12 +10,20 @@ use Symfony\Component\HttpFoundation\Request;
 
 final class DevTokenAuthenticatorTest extends TestCase
 {
-    public function testEnabledDemoTokenIsRecognized(): void
+    public function testEnabledDemoTokenIsRecognizedOutsideProduction(): void
     {
         $request = Request::create('/api/v1/me');
         $request->headers->set('Authorization', 'Bearer dev');
 
-        self::assertTrue($this->authenticator(true)->supports($request));
+        self::assertTrue($this->authenticator('test', true)->supports($request));
+    }
+
+    public function testProductionRefusesTheDemoTokenEvenWhenTheFlagIsOn(): void
+    {
+        $request = Request::create('/api/v1/me');
+        $request->headers->set('Authorization', 'Bearer dev');
+
+        self::assertFalse($this->authenticator('prod', true)->supports($request));
     }
 
     public function testDisabledDemoTokenIsIgnored(): void
@@ -23,7 +31,7 @@ final class DevTokenAuthenticatorTest extends TestCase
         $request = Request::create('/api/v1/me');
         $request->headers->set('Authorization', 'Bearer dev');
 
-        self::assertFalse($this->authenticator(false)->supports($request));
+        self::assertFalse($this->authenticator('test', false)->supports($request));
     }
 
     public function testOtherTokensAreIgnored(): void
@@ -31,11 +39,11 @@ final class DevTokenAuthenticatorTest extends TestCase
         $request = Request::create('/api/v1/me');
         $request->headers->set('Authorization', 'Bearer something-else');
 
-        self::assertFalse($this->authenticator(true)->supports($request));
+        self::assertFalse($this->authenticator('test', true)->supports($request));
     }
 
-    private function authenticator(bool $enabled): DevTokenAuthenticator
+    private function authenticator(string $environment, bool $enabled): DevTokenAuthenticator
     {
-        return new DevTokenAuthenticator($enabled, 'Demo Mitglied', 'admin');
+        return new DevTokenAuthenticator($enabled, 'Demo Mitglied', 'admin,Mitglieder', 'historic,supporter', $environment);
     }
 }

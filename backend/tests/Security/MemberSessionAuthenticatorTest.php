@@ -47,6 +47,7 @@ final class MemberSessionAuthenticatorTest extends TestCase
         self::assertInstanceOf(MemberUser::class, $user);
         self::assertSame('Vera Verein', $user->displayName());
         self::assertSame(['Vorstand', 'Mitglieder'], $user->groups());
+        self::assertSame([], $user->clubs());
         self::assertNull($user->picture());
         self::assertTrue($user->isOrganizer());
         self::assertFalse($user->canPlanRides());
@@ -59,10 +60,11 @@ final class MemberSessionAuthenticatorTest extends TestCase
         $request = Request::create('/api/v1/auth/callback');
         $request->setSession($session);
         $store = new MemberSession('historic_session');
-        $store->store($request, new MemberUser('auth0|1', 'Vera Verein', ['Mitglieder'], 'https://cdn.example.test/vera.jpg'));
+        $store->store($request, new MemberUser('auth0|1', 'Vera Verein', ['Mitglieder'], 'https://cdn.example.test/vera.jpg', ['historic', 'fremd']));
         $saved = $request->getSession()->get(MemberSession::KEY);
         self::assertIsArray($saved);
         self::assertSame('https://cdn.example.test/vera.jpg', $saved['picture']);
+        self::assertSame(['historic'], $saved['clubs']);
 
         $request->cookies->set('historic_session', $request->getSession()->getId());
         $user = $store->read($request);

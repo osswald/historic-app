@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Security;
 
+use App\Domain\Event\Club;
 use App\Security\MemberUser;
 use PHPUnit\Framework\TestCase;
 
@@ -45,7 +46,19 @@ final class MemberUserTest extends TestCase
         self::assertFalse($user->canEditFleet());
         self::assertFalse($user->isGastro());
         self::assertSame(['Mitglieder'], $user->profile()['groups']);
+        self::assertSame([], $user->profile()['clubs']);
         self::assertArrayNotHasKey('picture', $user->profile());
+    }
+
+    public function testClubsKeepOnlyTheStoredValues(): void
+    {
+        $user = new MemberUser('auth0|vera', 'Vera Verein', ['Mitglieder'], null, ['historic', 'supporter', 'dritter']);
+
+        self::assertTrue($user->belongsTo(Club::Historic));
+        self::assertTrue($user->sharesClub([Club::Supporter]));
+        self::assertFalse($user->sharesClub([]));
+        self::assertSame(['historic', 'supporter'], $user->profile()['clubs']);
+        self::assertFalse((new MemberUser('auth0|leer', 'Leer', ['Mitglieder']))->sharesClub([Club::Historic]));
     }
 
     public function testProfileIncludesAnHttpsPictureOnly(): void

@@ -4,18 +4,27 @@ declare(strict_types=1);
 
 namespace App\Security;
 
+use App\Domain\Event\Club;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 final class MemberUser implements UserInterface
 {
-    /** @param list<string> $groups */
+    /** @var list<string> */
+    private array $clubs;
+
+    /**
+     * @param list<string> $groups
+     * @param list<string> $clubs
+     */
     public function __construct(
         private string $sub,
         private string $displayName,
         private array $groups,
         private ?string $picture = null,
+        array $clubs = [],
     ) {
         $this->picture = self::normalizePicture($picture);
+        $this->clubs = self::normalizeClubs($clubs);
     }
 
     public function getUserIdentifier(): string
@@ -37,6 +46,56 @@ final class MemberUser implements UserInterface
     public function picture(): ?string
     {
         return $this->picture;
+    }
+
+    /** @return list<Club> */
+    public function clubs(): array
+    {
+        $clubs = [];
+        foreach ($this->clubs as $value) {
+            $club = Club::tryFrom($value);
+            if ($club instanceof Club) {
+                $clubs[] = $club;
+            }
+        }
+
+        return $clubs;
+    }
+
+    public function belongsTo(Club $club): bool
+    {
+        return in_array($club->value, $this->clubs, true);
+    }
+
+    /** @param list<Club> $clubs */
+    public function sharesClub(array $clubs): bool
+    {
+        foreach ($clubs as $club) {
+            if ($this->belongsTo($club)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @param list<string> $clubs
+     *  @return list<string>
+     */
+    public static function normalizeClubs(array $clubs): array
+    {
+        $values = [];
+        foreach ($clubs as $club) {
+            if (!is_string($club)) {
+                continue;
+            }
+            $match = Club::tryFrom(trim($club));
+            if ($match instanceof Club) {
+                $values[] = $match->value;
+            }
+        }
+
+        return array_values(array_unique($values));
     }
 
     public static function normalizePicture(mixed $picture): ?string
@@ -125,6 +184,7 @@ final class MemberUser implements UserInterface
             'sub' => $this->sub,
             'displayName' => $this->displayName,
             'groups' => $this->groups,
+            'clubs' => $this->clubs,
             'canOrganize' => $this->isOrganizer(),
             'canPlanRides' => $this->canPlanRides(),
             'canEditFleet' => $this->canEditFleet(),

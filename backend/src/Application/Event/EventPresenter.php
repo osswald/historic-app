@@ -41,6 +41,11 @@ final class EventPresenter
             'publicDescription' => $event->publicDescription(),
             'location' => $event->location(),
             'publishToWebsite' => $event->publishToWebsite(),
+            'invitations' => [
+                'groups' => $event->invitedGroups(),
+                'people' => $event->invitedPeople(),
+                'excluded' => $event->excludedPeople(),
+            ],
             'vehicles' => array_map(fn (EventVehicle $link): array => [
                 'vehicleId' => $link->vehicle()->id(),
                 'name' => $link->vehicle()->name(),
@@ -94,8 +99,10 @@ final class EventPresenter
         $mine = $day->responseFor($user->getUserIdentifier());
         $yes = 0;
         $no = 0;
+        $answered = [];
         $responses = [];
         foreach ($day->responses() as $response) {
+            $answered[$response->auth0Sub()] = true;
             if ($response->answer()->value === 'yes') {
                 ++$yes;
             } else {
@@ -103,6 +110,7 @@ final class EventPresenter
             }
             $responses[] = $this->response($response);
         }
+        $pending = $this->pending($day->event(), $answered);
 
         return [
             'id' => $day->id(),
@@ -120,9 +128,33 @@ final class EventPresenter
             'line1' => $this->line1($day, $today),
             'myResponse' => $mine?->answer()->value,
             'myComment' => $mine?->comment(),
-            'summary' => ['yes' => $yes, 'no' => $no],
+            'summary' => ['yes' => $yes, 'no' => $no, 'pending' => count($pending)],
+            'pending' => $pending,
             'responses' => $responses,
         ];
+    }
+
+    /**
+     * Named invitees without an answer. Group invitations stay dynamic and do not invent unknown members.
+     *
+     * @param array<string, true> $answered
+     * @return list<array{name: string}>
+     */
+    private function pending(Event $event, array $answered): array
+    {
+        $excluded = [];
+        foreach ($event->excludedPeople() as $person) {
+            $excluded[$person['sub']] = true;
+        }
+        $pending = [];
+        foreach ($event->invitedPeople() as $person) {
+            if (isset($excluded[$person['sub']]) || isset($answered[$person['sub']])) {
+                continue;
+            }
+            $pending[] = ['name' => $person['name']];
+        }
+
+        return $pending;
     }
 
     /** @return array<string, mixed> */

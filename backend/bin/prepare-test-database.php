@@ -28,6 +28,7 @@ foreach ([
     'AUTH_DEV_MODE' => '1',
     'DEV_USER_NAME' => 'Demo Mitglied',
     'DEV_USER_GROUPS' => 'admin,Mitglieder',
+    'DEV_USER_CLUBS' => 'historic,supporter',
     'AUTH0_DOMAIN' => '',
     'AUTH0_CLIENT_ID' => '',
     'AUTH0_CLIENT_SECRET' => '',
