@@ -13,7 +13,6 @@ from spond import spond
 
 GROUP_NAME = "Historic Team Winterthur"
 MAX_EVENTS = 500
-PAGE_LIMIT = 100
 EARLIEST = datetime(2000, 1, 1, tzinfo=timezone.utc)
 LATEST = datetime(2045, 12, 31, tzinfo=timezone.utc)
 
@@ -194,7 +193,7 @@ async def read_window(client: spond.Spond, group_id: str, min_start: datetime, m
             continue
         seen.add(event_id)
         rows.append(item)
-    if len(rows) < PAGE_LIMIT:
+    if len(rows) < MAX_EVENTS:
         exported: list[dict] = []
         for item in rows:
             detail = await client.get_event(str(item["id"]))
@@ -207,21 +206,19 @@ async def read_window(client: spond.Spond, group_id: str, min_start: datetime, m
                 raise SystemExit(1)
             exported.append(row)
         return exported
+    # The client sends each bound as midnight and treats it as inclusive.
+    # The left window therefore ends on the day after the midpoint, so that day stays included.
     start_day = min_start.date()
     end_day = max_start.date()
-    if (end_day - start_day).days < 1:
-        print("Die Terminliste ist unvollständig.", file=sys.stderr)
-        raise SystemExit(1)
-    mid = start_day + timedelta(days=(end_day - start_day).days // 2)
+    span = (end_day - start_day).days
+    mid = start_day + timedelta(days=span // 2)
     right = mid + timedelta(days=1)
-    right_start = datetime(right.year, right.month, right.day, tzinfo=timezone.utc)
-    # The midpoint day stays in the left window. The next day starts the right window.
-    left_end = right_start - timedelta(microseconds=1)
-    if not (min_start < left_end < max_start):
+    if span < 3 or not (start_day < right < end_day):
         print("Die Terminliste ist unvollständig.", file=sys.stderr)
         raise SystemExit(1)
-    earlier = await read_window(client, group_id, min_start, left_end)
-    later = await read_window(client, group_id, right_start, max_start) if right_start < max_start else []
+    right_start = datetime(right.year, right.month, right.day, tzinfo=timezone.utc)
+    earlier = await read_window(client, group_id, min_start, right_start)
+    later = await read_window(client, group_id, right_start, max_start)
     return earlier + later
 
 
