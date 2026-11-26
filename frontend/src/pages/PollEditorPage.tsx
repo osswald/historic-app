@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { Daypart, PollDetail } from '../api/types'
+import { BtnLabel } from '../design/BtnLabel'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { useNarrow } from '../forms/narrow'
@@ -235,7 +236,7 @@ export function PollEditorPage() {
   return (
     <section>
       <div className="toolbar" style={{ marginBottom: 13 }}>
-        <Link className="btn small light" to={editing ? `/umfragen/${id}` : '/umfragen'}>‹ Zurück</Link>
+        <Link className="btn small light" to={editing ? `/umfragen/${id}` : '/umfragen'}><BtnLabel icon="back" iconOnly={false}>Zurück</BtnLabel></Link>
         <span className="pill orange">{editing ? 'Bearbeitung' : 'Neue Umfrage'}</span>
       </div>
       <form className="editor-form" onSubmit={(event) => { void save(event) }}>
@@ -245,7 +246,7 @@ export function PollEditorPage() {
             <h1>{editing ? 'Umfrage bearbeiten' : 'Umfrage anlegen'}</h1>
             <div className="hello">Monatliche Depottage: alle Kalendertage mit Vormittag, Nachmittag und Abend, ohne Uhrzeit.</div>
           </div>
-          <button className="btn primary heading-save" disabled={busy} type="submit">Änderungen speichern</button>
+          <button className="btn primary heading-save" disabled={busy} type="submit"><BtnLabel icon="save">Änderungen speichern</BtnLabel></button>
         </div>
         {error ? <div className="banner-error">{error}</div> : null}
         <div className="detailgrid">
@@ -316,7 +317,7 @@ export function PollEditorPage() {
                       <div className="formfield">
                         <label>&nbsp;</label>
                         <button className="btn light" type="button" onClick={() => applyMonth(depotMonth)}>
-                          Alle Kalendertage eintragen
+                          <BtnLabel icon="add" iconOnly={false}>Alle Kalendertage eintragen</BtnLabel>
                         </button>
                       </div>
                     </div>
@@ -359,7 +360,7 @@ export function PollEditorPage() {
                           </div>
                           {depotDays.length > 1 && !dayIsLocked(day) ? (
                             <button className="btn small light" type="button" onClick={() => setDepotDays((current) => current.filter((item) => item.key !== day.key))}>
-                              Entfernen
+                              <BtnLabel icon="delete">Entfernen</BtnLabel>
                             </button>
                           ) : null}
                         </>
@@ -399,11 +400,11 @@ export function PollEditorPage() {
                     </div>
                     {errors[`options.${index}.endsAt`] ? <div className="field-error">{errors[`options.${index}.endsAt`]}</div> : null}
                     {option.adoptedEventId ? <p className="muted">Dieser Vorschlag ist übernommen und gesperrt.</p> : null}
-                    {normalOptions.length > 1 && !option.adoptedEventId ? <button className="btn small light" type="button" onClick={() => setNormalOptions((current) => current.filter((item) => item.key !== option.key))}>Termin entfernen</button> : null}
+                    {normalOptions.length > 1 && !option.adoptedEventId ? <button className="btn small light" type="button" onClick={() => setNormalOptions((current) => current.filter((item) => item.key !== option.key))}><BtnLabel icon="delete">Termin entfernen</BtnLabel></button> : null}
                   </div>
                 ))}
                 <button className="btn light" type="button" onClick={() => kind === 'depot' ? setDepotDays((current) => [...current, blankDepotDay()]) : setNormalOptions((current) => [...current, blankNormal()])}>
-                  {kind === 'depot' ? 'Weiteren Tag hinzufügen' : 'Weiteren Termin hinzufügen'}
+                  <BtnLabel icon="add">{kind === 'depot' ? 'Weiteren Tag hinzufügen' : 'Weiteren Termin hinzufügen'}</BtnLabel>
                 </button>
               </div>
             </div>

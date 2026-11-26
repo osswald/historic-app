@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { PollCard } from '../api/types'
+import { BtnLabel } from '../design/BtnLabel'
 import { useMember } from '../shell/context'
 
 export function PollsPage() {
@@ -23,7 +24,7 @@ export function PollsPage() {
           <h1>Umfragen</h1>
           <div className="hello">Terminsuche und manuell angelegte monatliche Depottage mit allen Kalendertagen. Eine Antwort gilt erst nach dem Speichern.</div>
         </div>
-        {member?.canOrganize ? <Link className="btn primary" to="/umfragen/neu">+ Umfrage</Link> : null}
+        {member?.canOrganize ? <Link className="btn primary" to="/umfragen/neu"><BtnLabel icon="add">Umfrage</BtnLabel></Link> : null}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="panel">

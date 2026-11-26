@@ -39,6 +39,16 @@ describe('groupAttendance', () => {
     expect(groups.every((group) => group.people.length === 0)).toBe(true)
   })
 
+  it('keeps an https profile picture and drops anything else', () => {
+    const groups = groupAttendance(
+      [{ name: 'Mit Bild', answer: 'yes', comment: null, picture: 'https://cdn.example.test/a.jpg' }],
+      [{ name: 'Ohne Bild', picture: 'http://cdn.example.test/b.jpg' }],
+    )
+
+    expect(groups[0]?.people[0]).toEqual({ name: 'Mit Bild', comment: null, picture: 'https://cdn.example.test/a.jpg' })
+    expect(groups[2]?.people[0]).toEqual({ name: 'Ohne Bild', comment: null })
+  })
+
   it('starts only Ja expanded', () => {
     expect(attendanceGroupStartsOpen('yes')).toBe(true)
     expect(attendanceGroupStartsOpen('no')).toBe(false)

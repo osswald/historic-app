@@ -236,6 +236,7 @@ export type DayResponse = {
   answer: Answer
   answerLabel: string
   comment: string | null
+  picture?: string
 }
 
 export type MeetingPoint = {
@@ -257,7 +258,7 @@ export type EventDay = {
   myResponse: Answer | null
   myComment: string | null
   summary: { yes: number; no: number; pending: number }
-  pending: Array<{ name: string }>
+  pending: Array<{ name: string; picture?: string }>
   responses: DayResponse[]
 }
 
@@ -278,6 +279,7 @@ export type ClubEvent = {
   clubs: Array<'historic' | 'supporter'>
   clubLabels: string[]
   categories: string[]
+  category: CatalogValue | null
   status: 'draft' | 'published' | 'cancelled' | 'archived'
   statusLabel: string
   internalDescription: string | null

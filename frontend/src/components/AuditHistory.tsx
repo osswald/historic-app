@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
+import { BtnLabel } from '../design/BtnLabel'
 import type { AuditChange, AuditEntry } from '../api/types'
 
 export function AuditHistoryButton({ entityType, entityId }: { entityType: string; entityId: string }) {
@@ -71,7 +72,7 @@ function AuditDialog({
       <div aria-labelledby={titleId} aria-modal="true" className="audit-modal" role="dialog">
         <div className="audit-modal-head">
           <h2 id={titleId}>Änderungsverlauf</h2>
-          <button className="btn small light audit-close" ref={closeRef} type="button" onClick={onClose}>Schliessen</button>
+          <button className="btn small light audit-close" ref={closeRef} type="button" onClick={onClose}><BtnLabel icon="close">Schliessen</BtnLabel></button>
         </div>
         {error ? <div className="field-error">{error}</div> : null}
         {!entries && !error ? <p className="muted">Wird geladen …</p> : null}

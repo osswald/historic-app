@@ -3,6 +3,7 @@ export type AttendanceGroupId = 'yes' | 'no' | 'pending'
 export type AttendancePerson = {
   name: string
   comment: string | null
+  picture?: string
 }
 
 export type AttendanceGroup = {
@@ -15,10 +16,18 @@ type NamedResponse = {
   name: string
   answer: string
   comment?: string | null
+  picture?: string | null
 }
 
 type NamedPending = {
   name: string
+  picture?: string | null
+}
+
+function listed(name: string, comment: string | null, picture?: string | null): AttendancePerson {
+  const row: AttendancePerson = { name, comment }
+  if (typeof picture === 'string' && picture.startsWith('https://')) row.picture = picture
+  return row
 }
 
 /** Nur Ja ist beim Öffnen der Seite aufgeklappt. */
@@ -36,12 +45,12 @@ export function groupAttendance(responses: NamedResponse[], pending: NamedPendin
   const answered = new Set<string>()
 
   for (const response of responses) {
-    const person = { name: response.name, comment: response.comment ?? null }
+    const row = listed(response.name, response.comment ?? null, response.picture)
     if (response.answer === 'yes') {
-      yes.push(person)
+      yes.push(row)
       answered.add(response.name)
     } else if (response.answer === 'no') {
-      no.push(person)
+      no.push(row)
       answered.add(response.name)
     }
   }
@@ -50,13 +59,13 @@ export function groupAttendance(responses: NamedResponse[], pending: NamedPendin
   const waitingNames = new Set<string>()
   for (const response of responses) {
     if (response.answer === 'yes' || response.answer === 'no' || waitingNames.has(response.name)) continue
-    waiting.push({ name: response.name, comment: response.comment ?? null })
+    waiting.push(listed(response.name, response.comment ?? null, response.picture))
     waitingNames.add(response.name)
   }
-  for (const person of pending) {
-    if (answered.has(person.name) || waitingNames.has(person.name)) continue
-    waiting.push({ name: person.name, comment: null })
-    waitingNames.add(person.name)
+  for (const invitee of pending) {
+    if (answered.has(invitee.name) || waitingNames.has(invitee.name)) continue
+    waiting.push(listed(invitee.name, null, invitee.picture))
+    waitingNames.add(invitee.name)
   }
 
   return [

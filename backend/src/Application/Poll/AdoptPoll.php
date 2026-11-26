@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Poll;
 
+use App\Application\Event\KnownEventCategories;
 use App\Application\InvalidRequest;
 use App\Application\ZurichClock;
 use App\Domain\Event\Event;
@@ -22,6 +23,7 @@ final class AdoptPoll
     public function __construct(
         private PollCatalog $catalog,
         private EventRepository $events,
+        private KnownEventCategories $categories,
         private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
@@ -48,7 +50,7 @@ final class AdoptPoll
             $event = new Event(
                 $this->title($poll->title(), $option),
                 $poll->clubValues(),
-                $poll->kind() === PollKind::Depot ? ['Depottag'] : ['Terminumfrage'],
+                $this->categories->named($poll->kind() === PollKind::Depot ? 'Depottag' : 'Terminumfrage'),
                 $choice['status'],
                 'Entstanden aus der Umfrage «'.$poll->title().'». Die Antworten der Umfrage gelten hier nicht.',
                 null,

@@ -78,7 +78,7 @@ final class ArchiveLinkedFolderTest extends TestCase
     private function event(): Event
     {
         $zone = new \DateTimeZone('Europe/Zurich');
-        $event = new Event('Veranstaltungsname', ['historic'], [], EventStatus::Published, null, null, null, false, new \DateTimeImmutable('2026-12-01', $zone));
+        $event = new Event('Veranstaltungsname', ['historic'], null, EventStatus::Published, null, null, null, false, new \DateTimeImmutable('2026-12-01', $zone));
         $event->addDay(new \DateTimeImmutable('2026-12-30', $zone), null, null, null, 0);
         $event->addDay(new \DateTimeImmutable('2027-01-02', $zone), null, null, null, 1);
 

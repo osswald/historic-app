@@ -6,6 +6,7 @@ import { ShowDoneTasksToggle } from '../tasks/ShowDoneTasksToggle'
 import { progressText, readShowDoneTasks, visibleTasks } from '../tasks/labels'
 import { CategoryGroupNames, namedChoices, visibleText } from '../tasks/names'
 import { TaskRow } from '../tasks/TaskRow'
+import { BtnLabel } from '../design/BtnLabel'
 import { useToast } from '../shell/context'
 
 type ListsPayload = TasksRead<{ lists: TaskListSummary[] }>
@@ -209,7 +210,7 @@ export function EventTasksPanel({ eventId }: { eventId: string }) {
               <input checked={personal} type="checkbox" onChange={(event) => setPersonal(event.target.checked)} />
               Persönliche Liste
             </label>
-            <button className="btn primary" disabled={busy} type="submit">Liste erstellen</button>
+            <button className="btn primary" disabled={busy} type="submit"><BtnLabel icon="add" iconOnly={false}>Liste erstellen</BtnLabel></button>
           </div>
         </form>
       ) : null}

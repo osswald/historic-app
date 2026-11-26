@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
-import type { ClubEvent, FleetList, InvitationPerson } from '../api/types'
+import type { CatalogValue, ClubEvent, FleetList, InvitationPerson } from '../api/types'
+import { BtnLabel } from '../design/BtnLabel'
 import { useMember } from '../shell/context'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
@@ -54,7 +55,9 @@ export function EventEditorPage() {
   const editing = Boolean(id)
   const [title, setTitle] = useState('')
   const [clubs, setClubs] = useState<Array<'historic' | 'supporter'>>(['historic'])
-  const [categories, setCategories] = useState('')
+  const [categoryId, setCategoryId] = useState('')
+  const [categoryOptions, setCategoryOptions] = useState<CatalogValue[]>([])
+  const [currentCategory, setCurrentCategory] = useState<CatalogValue | null>(null)
   const [status, setStatus] = useState<'draft' | 'published' | 'cancelled'>('draft')
   const [internalDescription, setInternalDescription] = useState('')
   const [publicDescription, setPublicDescription] = useState('')
@@ -83,7 +86,8 @@ export function EventEditorPage() {
     api<ClubEvent>(`/api/v1/events/${id}`).then((event) => {
       setTitle(event.title)
       setClubs(event.clubs)
-      setCategories(event.categories.join(', '))
+      setCategoryId(event.category?.id ?? '')
+      setCurrentCategory(event.category)
       setStatus(event.status === 'archived' ? 'draft' : event.status)
       setInternalDescription(event.internalDescription ?? '')
       setPublicDescription(event.publicDescription ?? '')
@@ -115,7 +119,7 @@ export function EventEditorPage() {
   }, [id])
 
   const snapshot = JSON.stringify({
-    title, clubs, categories, status, internalDescription, publicDescription, publishToWebsite, days, vehicles,
+    title, clubs, categoryId, status, internalDescription, publicDescription, publishToWebsite, days, vehicles,
     invitedGroups, invitedPeople, excludedPeople,
   })
   useEffect(() => {
@@ -126,6 +130,9 @@ export function EventEditorPage() {
   useRegisterUnsaved(editing ? `event-${id}` : 'event-new', dirty)
 
   useEffect(() => {
+    api<{ categories: CatalogValue[] }>('/api/v1/event-categories')
+      .then((body) => setCategoryOptions(body.categories))
+      .catch(() => setCategoryOptions([]))
     api<{ places: Array<{ name: string }> }>('/api/v1/places')
       .then((body) => setPlaces(body.places.map((place) => place.name)))
       .catch(() => setPlaces([]))
@@ -197,7 +204,7 @@ export function EventEditorPage() {
     const payload = {
       title,
       clubs,
-      categories: categories.split(',').map((item) => item.trim()).filter(Boolean),
+      categoryId: categoryId === '' ? null : categoryId,
       status,
       internalDescription,
       publicDescription,
@@ -254,7 +261,7 @@ export function EventEditorPage() {
   return (
     <section>
       <div className="toolbar" style={{ marginBottom: 13 }}>
-        <Link className="btn small light" to={editing ? `/veranstaltungen/${id}` : '/veranstaltungen'}>‹ Zurück</Link>
+        <Link className="btn small light" to={editing ? `/veranstaltungen/${id}` : '/veranstaltungen'}><BtnLabel icon="back" iconOnly={false}>Zurück</BtnLabel></Link>
         <span className="pill orange">{editing ? 'Bearbeitung' : 'Neue Veranstaltung'}</span>
       </div>
       <form className="editor-form" onSubmit={(event) => { void save(event) }}>
@@ -264,7 +271,7 @@ export function EventEditorPage() {
             <h1>{editing ? 'Veranstaltung bearbeiten' : 'Veranstaltung anlegen'}</h1>
             <div className="hello">Für Organisatoren und Administratoren.</div>
           </div>
-          <button className="btn primary heading-save" disabled={busy} type="submit">Änderungen speichern</button>
+          <button className="btn primary heading-save" disabled={busy} type="submit"><BtnLabel icon="save">Änderungen speichern</BtnLabel></button>
         </div>
         {error ? <div className="banner-error">{error}</div> : null}
         <div className="detailgrid">
@@ -283,8 +290,13 @@ export function EventEditorPage() {
                   </div>
                   {errors.clubs ? <div className="field-error">{errors.clubs}</div> : null}
                 </div>
-                <Field label="Kategorien">
-                  <input className="input" placeholder="Öffentliche Fahrt, Vereinsanlass" value={categories} onChange={(event) => setCategories(event.target.value)} />
+                <Field error={errors.categoryId} label="Kategorie">
+                  <select aria-label="Kategorie" className="input" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}>
+                    <option value="">—</option>
+                    {categoryChoices(categoryOptions, currentCategory).map((item) => (
+                      <option key={item.id} value={item.id}>{item.active === false ? `${item.name} (inaktiv)` : item.name}</option>
+                    ))}
+                  </select>
                 </Field>
                 <Field error={errors.status} label="Status">
                   <select className="input" value={status} onChange={(event) => setStatus(event.target.value as 'draft' | 'published' | 'cancelled')}>
@@ -333,7 +345,7 @@ export function EventEditorPage() {
                           <div className="vehicle-line">
                             <input aria-label={`Treffpunkt ${pointIndex + 1}`} className="input" list="place-directory" placeholder="Ort" value={point.placeName} onChange={(event) => updateMeeting(day.key, point.key, { placeName: event.target.value })} />
                             <input aria-label={`Uhrzeit Treffpunkt ${pointIndex + 1}`} className="input" type="time" value={point.meetsAt} onChange={(event) => updateMeeting(day.key, point.key, { meetsAt: event.target.value })} />
-                            <button className="btn small light" type="button" onClick={() => updateDay(day.key, { meetingPoints: day.meetingPoints.filter((item) => item.key !== point.key) })}>Entfernen</button>
+                            <button className="btn small light" type="button" onClick={() => updateDay(day.key, { meetingPoints: day.meetingPoints.filter((item) => item.key !== point.key) })}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                           </div>
                           <input aria-label={`Hinweis Treffpunkt ${pointIndex + 1}`} className="input" placeholder="Hinweis" style={{ marginTop: 6 }} value={point.description} onChange={(event) => updateMeeting(day.key, point.key, { description: event.target.value })} />
                           {errors[`days.${index}.meetingPoints.${pointIndex}.placeName`] || errors[`days.${index}.meetingPoints.${pointIndex}.meetsAt`] ? (
@@ -341,12 +353,12 @@ export function EventEditorPage() {
                           ) : null}
                         </div>
                       ))}
-                      <button className="btn small light secondary-action" type="button" onClick={() => updateDay(day.key, { meetingPoints: [...day.meetingPoints, blankMeeting()] })}>Treffpunkt hinzufügen</button>
+                      <button className="btn small light secondary-action" type="button" onClick={() => updateDay(day.key, { meetingPoints: [...day.meetingPoints, blankMeeting()] })}><BtnLabel icon="add">Treffpunkt hinzufügen</BtnLabel></button>
                     </div>
-                    {days.length > 1 ? <button className="btn small light" type="button" onClick={() => setDays((current) => current.filter((item) => item.key !== day.key))}>Tag entfernen</button> : null}
+                    {days.length > 1 ? <button className="btn small light" type="button" onClick={() => setDays((current) => current.filter((item) => item.key !== day.key))}><BtnLabel icon="delete">Tag entfernen</BtnLabel></button> : null}
                   </div>
                 ))}
-                <button className="btn light secondary-action" type="button" onClick={() => setDays((current) => [...current, blankDay()])}>Weiteren Tag hinzufügen</button>
+                <button className="btn light secondary-action" type="button" onClick={() => setDays((current) => [...current, blankDay()])}><BtnLabel icon="add">Weiteren Tag hinzufügen</BtnLabel></button>
                 <datalist id="place-directory">
                   {places.map((place) => <option key={place} value={place} />)}
                 </datalist>
@@ -370,7 +382,7 @@ export function EventEditorPage() {
                         {chosen?.external ? (
                           <input aria-label="Mietstatus" className="input" placeholder="Mietstatus" value={vehicle.rentalStatus} onChange={(event) => setVehicles((current) => current.map((item) => item.key === vehicle.key ? { ...item, rentalStatus: event.target.value } : item))} />
                         ) : null}
-                        <button className="btn small light" type="button" onClick={() => setVehicles((current) => current.filter((item) => item.key !== vehicle.key))}>Entfernen</button>
+                        <button className="btn small light" type="button" onClick={() => setVehicles((current) => current.filter((item) => item.key !== vehicle.key))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                       </div>
                       {errors[`vehicles.${index}.vehicleId`] || errors[`vehicles.${index}.rentalStatus`] ? (
                         <div className="field-error">{errors[`vehicles.${index}.vehicleId`] ?? errors[`vehicles.${index}.rentalStatus`]}</div>
@@ -378,7 +390,7 @@ export function EventEditorPage() {
                     </div>
                   )
                 })}
-                <button className="btn small light" type="button" onClick={() => setVehicles((current) => [...current, { key: crypto.randomUUID(), vehicleId: '', rentalStatus: '' }])}>Fahrzeug hinzufügen</button>
+                <button className="btn small light" type="button" onClick={() => setVehicles((current) => [...current, { key: crypto.randomUUID(), vehicleId: '', rentalStatus: '' }])}><BtnLabel icon="add">Fahrzeug hinzufügen</BtnLabel></button>
               </div>
             </div>
           </div>
@@ -389,7 +401,7 @@ export function EventEditorPage() {
               <Field error={errors['invitations.groups']} label="Gruppen">
                 <div className="toolbar">
                   <input aria-label="Gruppe" className="input" list="session-groups" placeholder="Gruppe" value={groupDraft} onChange={(event) => setGroupDraft(event.target.value)} />
-                  <button className="btn small light" type="button" onClick={addGroup}>Hinzufügen</button>
+                  <button className="btn small light" type="button" onClick={addGroup}><BtnLabel icon="add">Hinzufügen</BtnLabel></button>
                 </div>
               </Field>
               <datalist id="session-groups">
@@ -398,7 +410,7 @@ export function EventEditorPage() {
               {invitedGroups.map((group) => (
                 <div className="item" key={group}>
                   <div><b>{group}</b><small>Gruppe</small></div>
-                  <button className="btn small light" type="button" onClick={() => setInvitedGroups((current) => current.filter((item) => item !== group))}>Entfernen</button>
+                  <button className="btn small light" type="button" onClick={() => setInvitedGroups((current) => current.filter((item) => item !== group))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                 </div>
               ))}
               <Field error={errors['invitations.people']} label="Personen">
@@ -407,14 +419,14 @@ export function EventEditorPage() {
                     <option value="">Bekannte Person</option>
                     {knownPeople.map((person) => <option key={person.sub} value={person.sub}>{person.name}</option>)}
                   </select>
-                  <button className="btn small light" type="button" onClick={() => addNamed(personSub, 'invite')}>Einladen</button>
+                  <button className="btn small light" type="button" onClick={() => addNamed(personSub, 'invite')}><BtnLabel icon="add" iconOnly={false}>Einladen</BtnLabel></button>
                 </div>
               </Field>
               {knownPeople.length === 0 ? <p className="muted">Noch keine bekannte Person. Gruppen können trotzdem eingeladen werden.</p> : null}
               {invitedPeople.map((person) => (
                 <div className="item" key={person.sub}>
                   <div><b>{person.name}</b><small>Eingeladen</small></div>
-                  <button className="btn small light" type="button" onClick={() => setInvitedPeople((current) => current.filter((item) => item.sub !== person.sub))}>Entfernen</button>
+                  <button className="btn small light" type="button" onClick={() => setInvitedPeople((current) => current.filter((item) => item.sub !== person.sub))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                 </div>
               ))}
               <Field error={errors['invitations.excluded']} label="Ausschliessen">
@@ -423,13 +435,13 @@ export function EventEditorPage() {
                     <option value="">Bekannte Person</option>
                     {knownPeople.map((person) => <option key={person.sub} value={person.sub}>{person.name}</option>)}
                   </select>
-                  <button className="btn small light" type="button" onClick={() => addNamed(excludedSub, 'exclude')}>Ausschliessen</button>
+                  <button className="btn small light" type="button" onClick={() => addNamed(excludedSub, 'exclude')}><BtnLabel icon="close" iconOnly={false}>Ausschliessen</BtnLabel></button>
                 </div>
               </Field>
               {excludedPeople.map((person) => (
                 <div className="item" key={person.sub}>
                   <div><b>{person.name}</b><small>Ausgeschlossen</small></div>
-                  <button className="btn small light" type="button" onClick={() => setExcludedPeople((current) => current.filter((item) => item.sub !== person.sub))}>Entfernen</button>
+                  <button className="btn small light" type="button" onClick={() => setExcludedPeople((current) => current.filter((item) => item.sub !== person.sub))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                 </div>
               ))}
             </div>
@@ -482,6 +494,7 @@ function labelsForEventErrors(fields: Record<string, string> | undefined): strin
   return Object.keys(fields).map((key) => {
     if (key === 'title') return 'Titel der Veranstaltung'
     if (key === 'clubs') return 'Verein'
+    if (key === 'categoryId') return 'Kategorie'
     if (key === 'days' || /\.date$/.test(key)) return 'Datum'
     if (key.includes('placeName')) return 'Ort'
     if (key.includes('meetsAt')) return 'Uhrzeit'
@@ -489,6 +502,14 @@ function labelsForEventErrors(fields: Record<string, string> | undefined): strin
     if (key.includes('rentalStatus')) return 'Mietstatus'
     return ''
   })
+}
+
+function categoryChoices(options: CatalogValue[], current: CatalogValue | null): CatalogValue[] {
+  const active = options.filter((item) => item.active !== false)
+  if (current && !active.some((item) => item.id === current.id)) {
+    return [current, ...active]
+  }
+  return active
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {

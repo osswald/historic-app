@@ -1,6 +1,8 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { endSession, sessionToken } from '../auth/session'
+import { ActionIcon } from '../design/BtnLabel'
+import { initials } from '../design/initials'
 import { useMember, useToast } from './context'
 
 const ITEMS = [
@@ -25,20 +27,18 @@ function current(path: string): string {
   return 'dashboard'
 }
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '–'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
-}
-
 export function Shell({ children }: { children: ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
   const member = useMember()
   const toast = useToast()
   const [more, setMore] = useState(false)
+  const [accountOpen, setAccountOpen] = useState(false)
   const [photoFailed, setPhotoFailed] = useState(false)
+  const accountRef = useRef<HTMLDivElement>(null)
+  const accountButtonRef = useRef<HTMLButtonElement>(null)
+  const logoutRef = useRef<HTMLButtonElement>(null)
+  const accountMenuId = useId()
   const active = current(location.pathname)
   const isAdmin = member?.groups?.includes('admin') === true
   const items = [
@@ -53,6 +53,25 @@ export function Shell({ children }: { children: ReactNode }) {
   useEffect(() => {
     setPhotoFailed(false)
   }, [picture])
+
+  useEffect(() => {
+    if (!accountOpen) return
+    logoutRef.current?.focus()
+    function onPointer(event: PointerEvent) {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false)
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== 'Escape') return
+      setAccountOpen(false)
+      accountButtonRef.current?.focus()
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [accountOpen])
 
   function go(to: string) {
     setMore(false)
@@ -83,9 +102,52 @@ export function Shell({ children }: { children: ReactNode }) {
           <div className="top-actions">
             <a className="public-link" href="https://new.historic-winterthur.ch/" rel="noopener noreferrer" target="_blank">Zur öffentlichen Website ↗</a>
             <button className="ghost desktop-only" type="button" onClick={() => toast('Benachrichtigungen folgen mit der E-Mail- und Push-Anbindung.')}>♧ Benachrichtigungen</button>
-            <button aria-label="Abmelden" className={photoUrl ? 'avatar has-photo' : 'avatar'} title={name} type="button" onClick={logout}>
-              {photoUrl ? <img alt={name} src={photoUrl} onError={() => setPhotoFailed(true)} /> : initials(name)}
-            </button>
+            <div
+              className="account"
+              ref={accountRef}
+              onBlur={(event) => {
+                if (!accountRef.current?.contains(event.relatedTarget as Node)) setAccountOpen(false)
+              }}
+            >
+              <button
+                ref={accountButtonRef}
+                aria-controls={accountOpen ? accountMenuId : undefined}
+                aria-expanded={accountOpen}
+                aria-haspopup="menu"
+                aria-label={name}
+                className={photoUrl ? 'avatar account-button has-photo' : 'avatar account-button'}
+                title={name}
+                type="button"
+                onClick={() => setAccountOpen((open) => !open)}
+                onKeyDown={(event) => {
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault()
+                    setAccountOpen(true)
+                  }
+                }}
+              >
+                {photoUrl ? <img alt="" src={photoUrl} onError={() => setPhotoFailed(true)} /> : initials(name)}
+              </button>
+              {accountOpen ? (
+                <div
+                  aria-label="Konto"
+                  className="account-menu"
+                  id={accountMenuId}
+                  role="menu"
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'Home' || event.key === 'End') {
+                      event.preventDefault()
+                      logoutRef.current?.focus()
+                    }
+                  }}
+                >
+                  <button ref={logoutRef} className="account-logout" role="menuitem" type="button" onClick={logout}>
+                    <ActionIcon name="logout" />
+                    Abmelden
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
         <div className="primary-nav">

@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent } from '../api/types'
 import { EventRow } from '../components/EventRow'
+import { BtnLabel } from '../design/BtnLabel'
 import { useMember } from '../shell/context'
 import { eventIncludesTodayOrLater, readShowPastEvents, writeShowPastEvents, zurichToday } from './eventWindow'
 
@@ -55,7 +56,7 @@ export function EventsPage() {
           <h1>Alle Anlässe</h1>
           <div className="hello">Einladungen, Fahrten und Einsätze.</div>
         </div>
-        {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu">+ Veranstaltung planen</Link> : null}
+        {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu"><BtnLabel icon="add">Veranstaltung planen</BtnLabel></Link> : null}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="toolbar events-toolbar" style={{ marginBottom: 19 }}>

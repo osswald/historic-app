@@ -7,7 +7,9 @@ namespace App\Tests\Application;
 use App\Application\Event\EventPresenter;
 use App\Application\Spond\AttachSpondParticipation;
 use App\Application\Spond\ImportSpondAttendance;
+use App\Application\Event\KnownEventCategories;
 use App\Application\Spond\ImportSpondCalendar;
+use App\Tests\Domain\Event\MemoryEventCategoryRepository;
 use App\Domain\Event\Attendance;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventRepository;
@@ -26,7 +28,7 @@ final class SpondOwnAnswerTest extends TestCase
     public function testSpondAnswersBecomeLocalJaAndNeinOnTheEvent(): void
     {
         $events = new AttendanceEventRepository();
-        $calendar = new ImportSpondCalendar($events);
+        $calendar = new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository()));
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
         $imported = $calendar->import($this->payload('Führung'), $now);
         $this->apply(new ImportSpondAttendance(), $this->read(SpondReply::Accepted, 'Ada Beispiel', 'Bea Beispiel'), $imported, $now);
@@ -53,7 +55,7 @@ final class SpondOwnAnswerTest extends TestCase
     public function testASecondReadKeepsLocalEditsNamesAndTheRestOfTheEvent(): void
     {
         $events = new AttendanceEventRepository();
-        $calendar = new ImportSpondCalendar($events);
+        $calendar = new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository()));
         $attendance = new ImportSpondAttendance();
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
         $imported = $calendar->import($this->payload('Führung'), $now);
@@ -69,7 +71,7 @@ final class SpondOwnAnswerTest extends TestCase
         $event->change(
             $event->title(),
             ['historic'],
-            ['Spond'],
+            $event->category(),
             EventStatus::Draft,
             $event->internalDescription(),
             $event->publicDescription(),
@@ -111,7 +113,7 @@ final class SpondOwnAnswerTest extends TestCase
     public function testUnansweredRemovesOnlyTheImportedAnswer(): void
     {
         $events = new AttendanceEventRepository();
-        $calendar = new ImportSpondCalendar($events);
+        $calendar = new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository()));
         $attendance = new ImportSpondAttendance();
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
         $imported = $calendar->import($this->payload('Führung'), $now);
@@ -132,7 +134,7 @@ final class SpondOwnAnswerTest extends TestCase
     {
         $events = new AttendanceEventRepository();
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
-        $imported = (new ImportSpondCalendar($events))->import($this->payload('Führung'), $now);
+        $imported = (new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository())))->import($this->payload('Führung'), $now);
         $this->apply(new ImportSpondAttendance(), $this->read(SpondReply::Declined, 'Ada Beispiel', 'Bea Beispiel'), $imported, $now);
         $event = $events->bySpondEventId('spond-1');
         self::assertInstanceOf(Event::class, $event);
@@ -159,7 +161,7 @@ final class SpondOwnAnswerTest extends TestCase
     {
         $events = new AttendanceEventRepository();
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
-        $imported = (new ImportSpondCalendar($events))->import($this->payload('Führung'), $now);
+        $imported = (new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository())))->import($this->payload('Führung'), $now);
         $this->apply(new ImportSpondAttendance(), $this->read(SpondReply::Accepted, 'Ada Beispiel', 'Bea Beispiel'), $imported, $now);
         $event = $events->bySpondEventId('spond-1');
         self::assertInstanceOf(Event::class, $event);
@@ -183,7 +185,7 @@ final class SpondOwnAnswerTest extends TestCase
     {
         $events = new AttendanceEventRepository();
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
-        $imported = (new ImportSpondCalendar($events))->import($this->payload('Führung'), $now);
+        $imported = (new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository())))->import($this->payload('Führung'), $now);
         $this->apply(new ImportSpondAttendance(), $this->read(SpondReply::Accepted, 'Ada Beispiel', 'Bea Beispiel'), $imported, $now);
         $event = $events->bySpondEventId('spond-1');
         self::assertInstanceOf(Event::class, $event);

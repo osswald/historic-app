@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { BtnLabel } from '../design/BtnLabel'
 
 type Props = {
   dirty: boolean
@@ -91,8 +92,8 @@ export function MobileSaveBar({ dirty, busy = false, incomplete, onCancel }: Pro
       {dirty ? <p className="save-dirty">Ungespeicherte Änderungen</p> : null}
       {incomplete ? <p className="save-incomplete">{incomplete}</p> : null}
       <div className="mobile-save-bar-actions">
-        <button className="btn primary" disabled={busy} type="submit">Speichern</button>
-        <button className="btn light" type="button" onClick={onCancel}>Abbrechen</button>
+        <button className="btn primary" disabled={busy} type="submit"><BtnLabel icon="save">Speichern</BtnLabel></button>
+        <button className="btn light" type="button" onClick={onCancel}><BtnLabel icon="close" iconOnly={false}>Abbrechen</BtnLabel></button>
       </div>
     </div>
   )

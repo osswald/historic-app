@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, GastroPlan, GastroView } from '../api/types'
 import { AuditHistoryButton } from '../components/AuditHistory'
+import { BtnLabel } from '../design/BtnLabel'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { useRegisterUnsaved } from '../forms/unsaved'
@@ -132,7 +133,7 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
       <div className="stack">
         {error ? <div className="banner-error">{error}</div> : null}
         {canEdit ? (
-          <button className="btn light empty-add" type="button" onClick={() => setComposing(true)}>Planung hinzufügen</button>
+          <button className="btn light empty-add" type="button" onClick={() => setComposing(true)}><BtnLabel icon="add">Planung hinzufügen</BtnLabel></button>
         ) : (
           <p className="muted">Noch keine Gastronomieplanung.</p>
         )}
@@ -172,7 +173,7 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
           <div className="panel">
             <div className="panel-head">
               <h2>Planung bearbeiten</h2>
-              <button className="btn primary small desktop-save" disabled={busy} type="submit">Planung speichern</button>
+              <button className="btn primary small desktop-save" disabled={busy} type="submit"><BtnLabel icon="save">Planung speichern</BtnLabel></button>
             </div>
             <div className="panel-inner" style={{ paddingTop: 0 }}>
               <div className="note">Administratoren, das Gastro-Team und die hier benannten Verantwortlichen dürfen die Planung ändern.</div>
@@ -193,14 +194,14 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
                         <span className="mobile-label">Portionen</span>
                         <input aria-label={`Portionen ${index + 1}`} className="input" inputMode="numeric" placeholder="Portionen" value={dish.portions} onChange={(input) => updateDish(dish.key, { portions: input.target.value })} />
                       </div>
-                      <button className="btn small light" type="button" onClick={() => setDraft((current) => ({ ...current, dishes: current.dishes.filter((item) => item.key !== dish.key) }))}>Entfernen</button>
+                      <button className="btn small light" type="button" onClick={() => setDraft((current) => ({ ...current, dishes: current.dishes.filter((item) => item.key !== dish.key) }))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                     </div>
                     {fieldErrors[`dishes.${index}.name`] || fieldErrors[`dishes.${index}.portions`] ? (
                       <div className="field-error">{fieldErrors[`dishes.${index}.name`] ?? fieldErrors[`dishes.${index}.portions`]}</div>
                     ) : null}
                   </div>
                 ))}
-                <button className="btn small light" type="button" onClick={() => setDraft((current) => ({ ...current, dishes: [...current.dishes, blankDish()] }))}>Gericht hinzufügen</button>
+                <button className="btn small light" type="button" onClick={() => setDraft((current) => ({ ...current, dishes: [...current.dishes, blankDish()] }))}><BtnLabel icon="add">Gericht hinzufügen</BtnLabel></button>
               </div>
               <Field error={fieldErrors.notes} label="Notiz">
                 <textarea className="input" value={draft.notes} onChange={(input) => setDraft((current) => ({ ...current, notes: input.target.value }))} />
@@ -211,14 +212,14 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
                 {draft.responsible.length === 0 ? <p className="muted">Noch niemand benannt.</p> : draft.responsible.map((person) => (
                   <div className="responsible-line" key={person.key}>
                     <span>{person.name}</span>
-                    <button className="btn small light" type="button" onClick={() => setDraft((current) => ({ ...current, responsible: current.responsible.filter((item) => item.key !== person.key) }))}>Entfernen</button>
+                    <button className="btn small light" type="button" onClick={() => setDraft((current) => ({ ...current, responsible: current.responsible.filter((item) => item.key !== person.key) }))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                   </div>
                 ))}
                 {member && !alreadyNamed ? (
                   <button className="btn small light" type="button" onClick={() => setDraft((current) => ({
                     ...current,
                     responsible: [...current.responsible, { key: member.sub, sub: member.sub, name: member.displayName }],
-                  }))}>Mich eintragen</button>
+                  }))}><BtnLabel icon="add" iconOnly={false}>Mich eintragen</BtnLabel></button>
                 ) : null}
               </div>
             </div>

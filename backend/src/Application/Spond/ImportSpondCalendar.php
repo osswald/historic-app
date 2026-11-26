@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Spond;
 
+use App\Application\Event\KnownEventCategories;
 use App\Domain\Event\Club;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventRepository;
@@ -12,8 +13,10 @@ use App\Domain\Event\EventStatus;
 /** Legt gelesene Spond-Termine als Anlässe im Vereinskalender ab. */
 final class ImportSpondCalendar
 {
-    public function __construct(private EventRepository $events)
-    {
+    public function __construct(
+        private EventRepository $events,
+        private KnownEventCategories $categories,
+    ) {
     }
 
     /** @param array<string, mixed> $export */
@@ -80,7 +83,7 @@ final class ImportSpondCalendar
         $event = new Event(
             $heading,
             [Club::Historic->value],
-            ['Spond'],
+            $this->categories->named('Spond'),
             EventStatus::Published,
             'Aus Spond übernommen. Die Teilnahme liegt an diesem Anlass. Fahrt und Gastronomie können hier ergänzt werden.',
             $description,

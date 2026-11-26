@@ -5,6 +5,7 @@ import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { VehiclePick } from '../forms/VehiclePick'
 import { useRegisterUnsaved } from '../forms/unsaved'
+import { BtnLabel } from '../design/BtnLabel'
 import { useToast } from '../shell/context'
 import { clockLabel, dayLabel, offsetLabel } from './rideTime'
 
@@ -338,7 +339,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
       <div className="panel ride-list">
         <div className="panel-head">
           <h2>Fahrten</h2>
-          {canEdit ? <button className="btn light" type="button" onClick={openNew}>Fahrt hinzufügen</button> : null}
+          {canEdit ? <button className="btn light" type="button" onClick={openNew}><BtnLabel icon="add">Fahrt hinzufügen</BtnLabel></button> : null}
         </div>
         {rides.length === 0 ? <p className="empty">Noch keine Fahrt erfasst.</p> : (
           <>
@@ -381,7 +382,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                   <span className="ride-clock" data-label="Ankunft">{clockLabel(ride.arrivalTime, ride.arrivalOffset)}</span>
                   {canEdit ? (
                     <span data-label="Bearbeiten">
-                      <button className="btn small light" type="button" onClick={() => openExisting(ride, index)}>Bearbeiten</button>
+                      <button className="btn small light" type="button" onClick={() => openExisting(ride, index)}><BtnLabel icon="edit">Bearbeiten</BtnLabel></button>
                     </span>
                   ) : null}
                 </div>
@@ -398,7 +399,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
           <div className="panel">
             <div className="panel-head">
               <h2>Allgemeine Fahrtenplanung</h2>
-              <button className="btn primary small desktop-save" disabled={busy} type="submit">Speichern</button>
+              <button className="btn primary small desktop-save" disabled={busy} type="submit"><BtnLabel icon="save">Speichern</BtnLabel></button>
             </div>
             <div className="panel-inner">
               <div className="formrow cols3">
@@ -459,7 +460,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                       {chosen?.external ? (
                         <input aria-label="Mietstatus" className="input" placeholder="Mietstatus" value={vehicle.rentalStatus} onChange={(input) => setListed((current) => current.map((item) => item.key === vehicle.key ? { ...item, rentalStatus: input.target.value } : item))} />
                       ) : null}
-                      <button className="btn small light" type="button" onClick={() => setListed((current) => current.filter((item) => item.key !== vehicle.key))}>Entfernen</button>
+                      <button className="btn small light" type="button" onClick={() => setListed((current) => current.filter((item) => item.key !== vehicle.key))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                     </div>
                     {fieldErrors[`eventVehicles.${index}.vehicleId`] || fieldErrors[`eventVehicles.${index}.rentalStatus`] ? (
                       <div className="field-error">{fieldErrors[`eventVehicles.${index}.vehicleId`] ?? fieldErrors[`eventVehicles.${index}.rentalStatus`]}</div>
@@ -467,7 +468,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                   </div>
                 )
               })}
-              <button className="btn small light" type="button" onClick={() => setListed((current) => [...current, { key: crypto.randomUUID(), vehicleId: '', rentalStatus: '' }])}>Fahrzeug aufnehmen</button>
+              <button className="btn small light" type="button" onClick={() => setListed((current) => [...current, { key: crypto.randomUUID(), vehicleId: '', rentalStatus: '' }])}><BtnLabel icon="add">Fahrzeug aufnehmen</BtnLabel></button>
             </div>
           </div>
           {modalOpen ? null : <MobileSaveBar busy={busy} dirty={pageDirty} incomplete={incomplete} onCancel={cancel} />}
@@ -565,22 +566,22 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                       value={vehicle.vehicleId}
                       onChange={(vehicleId) => patchEditorVehicle(vehicle.key, { vehicleId })}
                     />
-                    <button className="btn small light" type="button" onClick={() => patchEditor({ vehicles: editor.draft.vehicles.filter((item) => item.key !== vehicle.key) })}>Entfernen</button>
+                    <button className="btn small light" type="button" onClick={() => patchEditor({ vehicles: editor.draft.vehicles.filter((item) => item.key !== vehicle.key) })}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
                     {rideFieldErrors[`rides.${editor.index}.vehicles.${vehicleIndex}.vehicleId`] ? (
                       <div className="field-error vehicle-line-error">{rideFieldErrors[`rides.${editor.index}.vehicles.${vehicleIndex}.vehicleId`]}</div>
                     ) : null}
                   </div>
                 ))}
-                <button className="btn small light" type="button" onClick={() => patchEditor({ vehicles: [...editor.draft.vehicles, blankVehicle(editorVehicles)] })}>Fahrzeug hinzufügen</button>
+                <button className="btn small light" type="button" onClick={() => patchEditor({ vehicles: [...editor.draft.vehicles, blankVehicle(editorVehicles)] })}><BtnLabel icon="add">Fahrzeug hinzufügen</BtnLabel></button>
               </div>
               <Field error={rideFieldErrors[`rides.${editor.index}.internalNote`]} label="Interne Notiz">
                 <textarea className="input" value={editor.draft.internalNote} onChange={(input) => patchEditor({ internalNote: input.target.value })} />
               </Field>
             </div>
             <div className="ride-modal-actions">
-              <button className="btn primary" disabled={rideBusy} type="submit">Speichern</button>
-              <button className="btn light" type="button" onClick={closeEditor}>Abbrechen</button>
-              {editor.draft.id ? <button className="btn small light" disabled={rideBusy} type="button" onClick={() => { void removeRide() }}>Fahrt entfernen</button> : null}
+              <button className="btn primary" disabled={rideBusy} type="submit"><BtnLabel icon="save">Speichern</BtnLabel></button>
+              <button className="btn light" type="button" onClick={closeEditor}><BtnLabel icon="close" iconOnly={false}>Abbrechen</BtnLabel></button>
+              {editor.draft.id ? <button className="btn small light" disabled={rideBusy} type="button" onClick={() => { void removeRide() }}><BtnLabel icon="delete">Fahrt entfernen</BtnLabel></button> : null}
             </div>
           </form>
         </div>
@@ -722,9 +723,9 @@ function ViaField({ stations, onChange, error }: { stations: StationChoice[]; on
       {stations.map((station, index) => (
         <div className="via-line" key={`${station.didokCode}-${index}`}>
           <span className="via-name">{stationSelectLabel(station)}</span>
-          <button className="btn small light" disabled={index === 0} type="button" onClick={() => onChange(moveVia(stations, index, -1))}>Hoch</button>
-          <button className="btn small light" disabled={index === stations.length - 1} type="button" onClick={() => onChange(moveVia(stations, index, 1))}>Runter</button>
-          <button className="btn small light" type="button" onClick={() => onChange(stations.filter((_, item) => item !== index))}>Entfernen</button>
+          <button className="btn small light" disabled={index === 0} type="button" onClick={() => onChange(moveVia(stations, index, -1))}><BtnLabel icon="up" iconOnly={false}>Hoch</BtnLabel></button>
+          <button className="btn small light" disabled={index === stations.length - 1} type="button" onClick={() => onChange(moveVia(stations, index, 1))}><BtnLabel icon="down" iconOnly={false}>Runter</BtnLabel></button>
+          <button className="btn small light" type="button" onClick={() => onChange(stations.filter((_, item) => item !== index))}><BtnLabel icon="delete">Entfernen</BtnLabel></button>
         </div>
       ))}
       <input aria-label="Via-Bahnhof suchen" className="input" placeholder="Name oder Kürzel" value={query} onChange={(input) => setQuery(input.target.value)} />

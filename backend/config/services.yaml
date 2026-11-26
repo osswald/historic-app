@@ -25,6 +25,7 @@ services:
     Symfony\Component\HttpClient\Psr18Client: ~
 
     App\Domain\Event\EventRepository: '@App\Infrastructure\Doctrine\DoctrineEventRepository'
+    App\Domain\Event\EventCategoryRepository: '@App\Infrastructure\Doctrine\DoctrineEventCategoryRepository'
     App\Domain\Event\EventTaskListRepository: '@App\Infrastructure\Doctrine\DoctrineEventTaskListRepository'
     App\Domain\Event\EventHelferLinkRepository: '@App\Infrastructure\Doctrine\DoctrineEventHelferLinkRepository'
     App\Domain\Event\EventNextcloudFolderRepository: '@App\Infrastructure\Doctrine\DoctrineEventNextcloudFolderRepository'

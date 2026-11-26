@@ -9,6 +9,8 @@ use App\Application\Membership\ClubScope;
 use App\Application\ZurichClock;
 use App\Domain\Event\Club;
 use App\Domain\Event\Event;
+use App\Domain\Event\EventCategory;
+use App\Domain\Event\EventCategoryRepository;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventStatus;
 use App\Domain\Event\EventRepository;
@@ -24,6 +26,7 @@ final class SaveEvent
 {
     public function __construct(
         private EventRepository $events,
+        private EventCategoryRepository $categories,
         private EventCatalog $catalog,
         private ClubScope $clubs,
         private KnownPeople $people,
@@ -45,7 +48,7 @@ final class SaveEvent
         $event = new Event(
             $input['title'],
             $input['clubs'],
-            $input['categories'],
+            $input['category'],
             $input['status'],
             $input['internalDescription'],
             $input['publicDescription'],
@@ -79,7 +82,7 @@ final class SaveEvent
         $event->change(
             $input['title'],
             $input['clubs'],
-            $input['categories'],
+            $input['category'],
             $input['status'],
             $input['internalDescription'],
             $input['publicDescription'],
@@ -112,7 +115,7 @@ final class SaveEvent
      * @return array{
      *     title: string,
      *     clubs: list<string>,
-     *     categories: list<string>,
+     *     category: ?EventCategory,
      *     status: EventStatus,
      *     internalDescription: ?string,
      *     publicDescription: ?string,
@@ -150,13 +153,7 @@ final class SaveEvent
             $errors['clubs'] = 'Bitte mindestens einen Verein auswählen.';
         }
 
-        $categories = [];
-        foreach ((array) ($payload['categories'] ?? []) as $value) {
-            $category = trim((string) $value);
-            if ($category !== '') {
-                $categories[] = $category;
-            }
-        }
+        $category = $this->categoryChoice($payload, $existing, $errors);
 
         $status = EventStatus::tryFrom((string) ($payload['status'] ?? ''));
         if (!$status instanceof EventStatus || $status === EventStatus::Archived) {
@@ -223,7 +220,7 @@ final class SaveEvent
         return [
             'title' => $title,
             'clubs' => $clubs,
-            'categories' => array_values(array_unique($categories)),
+            'category' => $category,
             'status' => $status,
             'internalDescription' => $this->nullableText($payload['internalDescription'] ?? null, 8000),
             'publicDescription' => $this->nullableText($payload['publicDescription'] ?? null, 8000),
@@ -233,6 +230,39 @@ final class SaveEvent
             'vehicles' => $vehicles,
             'invitations' => $invitations,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, string> $errors
+     */
+    private function categoryChoice(array $payload, ?Event $existing, array &$errors): ?EventCategory
+    {
+        if (!array_key_exists('categoryId', $payload)) {
+            return $existing?->category();
+        }
+        $value = $payload['categoryId'];
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return null;
+        }
+        $id = trim((string) $value);
+        $known = [];
+        foreach ($this->categories->all() as $category) {
+            $known[$category->id()] = $category;
+        }
+        $chosen = $known[$id] ?? null;
+        if (!$chosen instanceof EventCategory) {
+            $errors['categoryId'] = 'Bitte eine Veranstaltungskategorie aus der Liste wählen.';
+
+            return null;
+        }
+        if (!$chosen->isActive() && $id !== $existing?->category()?->id()) {
+            $errors['categoryId'] = 'Diese Veranstaltungskategorie ist nicht mehr aktiv.';
+
+            return null;
+        }
+
+        return $chosen;
     }
 
     /**

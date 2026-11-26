@@ -43,7 +43,7 @@ final class EventFolderNameTest extends TestCase
         $event = new Event(
             'Veranstaltungsname',
             ['historic'],
-            [],
+            null,
             EventStatus::Published,
             null,
             null,

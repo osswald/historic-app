@@ -36,7 +36,7 @@ final class CopyEvent
         $copy = new Event(
             $this->title($source->title()),
             array_map(static fn ($club) => $club->value, $source->clubs()),
-            $source->categories(),
+            $source->category(),
             EventStatus::Draft,
             $source->internalDescription(),
             $source->publicDescription(),

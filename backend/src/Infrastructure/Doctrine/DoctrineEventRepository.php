@@ -34,6 +34,14 @@ final class DoctrineEventRepository extends ServiceEntityRepository implements E
 
     public function all(): array
     {
-        return $this->findBy([], ['createdAt' => 'ASC']);
+        /** @var list<Event> $events */
+        $events = $this->createQueryBuilder('event')
+            ->leftJoin('event.category', 'category')
+            ->addSelect('category')
+            ->orderBy('event.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        return $events;
     }
 }

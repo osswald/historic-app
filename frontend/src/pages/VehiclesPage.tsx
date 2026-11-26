@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import type { FleetList, FleetVehicle, VehicleStatus } from '../api/types'
 import { AuditHistoryButton } from '../components/AuditHistory'
+import { BtnLabel } from '../design/BtnLabel'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { confirmLeave, useRegisterUnsaved } from '../forms/unsaved'
@@ -64,7 +65,7 @@ export function VehiclesPage() {
           <h1>Historische Fahrzeuge</h1>
           <div className="hello">{technical ? 'Interner Überblick mit Status und letztem Batterieladen.' : 'Namen, Nummern und Batterieladungen der Fahrzeuge.'}</div>
         </div>
-        {list?.canEdit ? <button className="btn primary" type="button" onClick={() => setCreating(true)}>+ Fahrzeug</button> : null}
+        {list?.canEdit ? <button className="btn primary" type="button" onClick={() => setCreating(true)}><BtnLabel icon="add">Fahrzeug</BtnLabel></button> : null}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="note" style={{ marginBottom: 16 }}>
@@ -129,8 +130,8 @@ function VehicleCard({ vehicle, technical, canEdit, canRecordBattery, onChange }
       {canRecordBattery ? (
         <form className="vehicle-actions" onSubmit={(submit) => { void charge(submit) }}>
           <input aria-label="Datum der Batterieladung" className="input" max={zurichToday()} type="date" value={chargedOn} onChange={(input) => setChargedOn(input.target.value)} />
-          <button className="btn small light" disabled={busy} type="submit">Batterien geladen</button>
-          {canEdit ? <button className="btn small light" type="button" onClick={() => setOpen((value) => !value)}>{open ? 'Schliessen' : 'Details'}</button> : null}
+          <button className="btn small light" disabled={busy} type="submit"><BtnLabel icon="check" iconOnly={false}>Batterien geladen</BtnLabel></button>
+          {canEdit ? <button className="btn small light" type="button" onClick={() => setOpen((value) => !value)}><BtnLabel icon={open ? 'close' : 'down'} iconOnly={false}>{open ? 'Schliessen' : 'Details'}</BtnLabel></button> : null}
         </form>
       ) : null}
       {open && technical ? <VehicleDetails vehicle={vehicle} onChange={onChange} onClose={() => setOpen(false)} /> : null}
@@ -205,7 +206,7 @@ function VehicleDetails({ vehicle, onChange, onClose }: { vehicle: FleetVehicle;
           </div>
           {fieldErrors.kind || fieldErrors.value || fieldErrors.readOn ? <div className="field-error">{fieldErrors.kind ?? fieldErrors.value ?? fieldErrors.readOn}</div> : null}
           {error ? <div className="field-error">{error}</div> : null}
-          <button className="btn small light" disabled={busy} type="submit">Zählerstand erfassen</button>
+          <button className="btn small light" disabled={busy} type="submit"><BtnLabel icon="edit" iconOnly={false}>Zählerstand erfassen</BtnLabel></button>
         </div>
       </form>
       <p className="muted fact-inline">
@@ -379,8 +380,8 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
         {fieldErrors.technicalNote ? <div className="field-error">{fieldErrors.technicalNote}</div> : null}
       </div>
       <div className="vehicle-actions desktop-save">
-        <button className="btn primary small" disabled={busy} type="submit">Speichern</button>
-        {onCancel ? <button className="btn small light" type="button" onClick={cancel}>Abbrechen</button> : null}
+        <button className="btn primary small" disabled={busy} type="submit"><BtnLabel icon="save">Speichern</BtnLabel></button>
+        {onCancel ? <button className="btn small light" type="button" onClick={cancel}><BtnLabel icon="close" iconOnly={false}>Abbrechen</BtnLabel></button> : null}
       </div>
       <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />
     </form>

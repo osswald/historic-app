@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent } from '../api/types'
 import { responsePill } from '../components/EventRow'
+import { BtnLabel } from '../design/BtnLabel'
 import { useMember } from '../shell/context'
 
 type Mode = 'month' | 'week' | 'list'
@@ -61,16 +62,16 @@ export function CalendarPage() {
           <h1>Kalender</h1>
           <div className="hello">Deine Veranstaltungen im Überblick.</div>
         </div>
-        {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu">+ Neuer Anlass</Link> : <span />}
+        {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu"><BtnLabel icon="add">Neuer Anlass</BtnLabel></Link> : <span />}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="panel">
         <div className="panel-head">
           <h2 style={{ textTransform: 'capitalize' }}>{title}</h2>
           <div className="toolbar">
-            <button className="btn small light" type="button" onClick={() => setCursor(new Date(year, month - 1, 1))}>‹</button>
+            <button aria-label="Vorheriger Monat" className="btn small light" type="button" onClick={() => setCursor(new Date(year, month - 1, 1))}>‹</button>
             <button className="btn small light" type="button" onClick={() => setCursor(new Date())}>Heute</button>
-            <button className="btn small light" type="button" onClick={() => setCursor(new Date(year, month + 1, 1))}>›</button>
+            <button aria-label="Nächster Monat" className="btn small light" type="button" onClick={() => setCursor(new Date(year, month + 1, 1))}>›</button>
             <button className={mode === 'month' ? 'btn small' : 'btn small light'} type="button" onClick={() => setMode('month')}>Monat</button>
             <button className={mode === 'week' ? 'btn small' : 'btn small light'} type="button" onClick={() => setMode('week')}>Woche</button>
             <button className={mode === 'list' ? 'btn small' : 'btn small light'} type="button" onClick={() => setMode('list')}>Liste</button>

@@ -25,9 +25,9 @@ class Event
     #[ORM\Column(type: Types::JSON)]
     private array $clubs;
 
-    /** @var list<string> */
-    #[ORM\Column(type: Types::JSON)]
-    private array $categories;
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
+    private ?EventCategory $category = null;
 
     #[ORM\Column(enumType: EventStatus::class)]
     private EventStatus $status;
@@ -77,12 +77,11 @@ class Event
 
     /**
      * @param list<string> $clubs
-     * @param list<string> $categories
      */
     public function __construct(
         string $title,
         array $clubs,
-        array $categories,
+        ?EventCategory $category,
         EventStatus $status,
         ?string $internalDescription,
         ?string $publicDescription,
@@ -94,7 +93,7 @@ class Event
         $this->id = $id ?? Uuid::v7()->toRfc4122();
         $this->title = $title;
         $this->clubs = $clubs;
-        $this->categories = $categories;
+        $this->category = $category;
         $this->status = $status;
         $this->internalDescription = $internalDescription;
         $this->publicDescription = $publicDescription;
@@ -130,10 +129,15 @@ class Event
         return $clubs;
     }
 
+    public function category(): ?EventCategory
+    {
+        return $this->category;
+    }
+
     /** @return list<string> */
     public function categories(): array
     {
-        return $this->categories;
+        return $this->category instanceof EventCategory ? [$this->category->name()] : [];
     }
 
     public function status(): EventStatus
@@ -339,12 +343,11 @@ class Event
 
     /**
      * @param list<string> $clubs
-     * @param list<string> $categories
      */
     public function change(
         string $title,
         array $clubs,
-        array $categories,
+        ?EventCategory $category,
         EventStatus $status,
         ?string $internalDescription,
         ?string $publicDescription,
@@ -354,7 +357,7 @@ class Event
     ): void {
         $this->title = $title;
         $this->clubs = $clubs;
-        $this->categories = $categories;
+        $this->category = $category;
         $this->status = $status;
         $this->internalDescription = $internalDescription;
         $this->publicDescription = $publicDescription;
@@ -453,7 +456,7 @@ class Event
         return [
             'title' => $this->title,
             'clubs' => $this->clubs,
-            'categories' => $this->categories,
+            'categories' => $this->categories(),
             'status' => $this->status->value,
             'internalDescription' => $this->internalDescription,
             'publicDescription' => $this->publicDescription,

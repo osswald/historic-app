@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Application\Event;
 
 use App\Domain\Event\Event;
+use App\Domain\Event\EventCategory;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventResponse;
 use App\Domain\Event\EventVehicle;
@@ -35,6 +36,7 @@ final class EventPresenter
             'clubs' => array_map(static fn ($club) => $club->value, $event->clubs()),
             'clubLabels' => array_map(static fn ($club) => $club->label(), $event->clubs()),
             'categories' => $event->categories(),
+            'category' => $this->category($event),
             'status' => $event->status()->value,
             'statusLabel' => $event->status()->label(),
             'internalDescription' => $event->internalDescription(),
@@ -111,9 +113,9 @@ final class EventPresenter
             } else {
                 ++$no;
             }
-            $responses[] = $this->response($response);
+            $responses[] = $this->response($response, $user);
         }
-        $pending = $this->pending($day->event(), $answered);
+        $pending = $this->pending($day->event(), $answered, $user);
 
         return [
             'id' => $day->id(),
@@ -141,9 +143,9 @@ final class EventPresenter
      * Named invitees without an answer. Group invitations stay dynamic and do not invent unknown members.
      *
      * @param array<string, true> $answered
-     * @return list<array{name: string}>
+     * @return list<array<string, mixed>>
      */
-    private function pending(Event $event, array $answered): array
+    private function pending(Event $event, array $answered, MemberUser $user): array
     {
         $excluded = [];
         foreach ($event->excludedPeople() as $person) {
@@ -154,20 +156,51 @@ final class EventPresenter
             if (isset($excluded[$person['sub']]) || isset($answered[$person['sub']])) {
                 continue;
             }
-            $pending[] = ['name' => $person['name']];
+            $pending[] = $this->withPicture(['name' => $person['name']], $person['sub'], $user);
         }
 
         return $pending;
     }
 
     /** @return array<string, mixed> */
-    private function response(EventResponse $response): array
+    private function response(EventResponse $response, MemberUser $user): array
     {
-        return [
+        return $this->withPicture([
             'name' => $response->respondentName(),
             'answer' => $response->answer()->value,
             'answerLabel' => $response->answer()->label(),
             'comment' => $response->comment(),
+        ], $response->auth0Sub(), $user);
+    }
+
+    /**
+     * Profilbild nur, wenn es für genau diese Person bekannt ist.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    private function withPicture(array $row, ?string $sub, MemberUser $user): array
+    {
+        $picture = $user->picture();
+        if ($sub !== null && $sub !== '' && $sub === $user->getUserIdentifier() && $picture !== null) {
+            $row['picture'] = $picture;
+        }
+
+        return $row;
+    }
+
+    /** @return array{id: string, name: string, active: bool}|null */
+    private function category(Event $event): ?array
+    {
+        $category = $event->category();
+        if (!$category instanceof EventCategory) {
+            return null;
+        }
+
+        return [
+            'id' => $category->id(),
+            'name' => $category->name(),
+            'active' => $category->isActive(),
         ];
     }
 

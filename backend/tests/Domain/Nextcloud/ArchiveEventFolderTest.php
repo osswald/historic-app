@@ -54,7 +54,7 @@ final class ArchiveEventFolderTest extends TestCase
     private function event(string $title, array $dates): Event
     {
         $zone = new \DateTimeZone('Europe/Zurich');
-        $event = new Event($title, ['historic'], [], EventStatus::Published, null, null, null, false, new \DateTimeImmutable('2026-01-01', $zone));
+        $event = new Event($title, ['historic'], null, EventStatus::Published, null, null, null, false, new \DateTimeImmutable('2026-01-01', $zone));
         foreach ($dates as $index => $date) {
             $event->addDay(new \DateTimeImmutable($date, $zone), null, null, null, $index);
         }

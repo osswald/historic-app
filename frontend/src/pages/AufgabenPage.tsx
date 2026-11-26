@@ -4,6 +4,7 @@ import type { TaskItem, TaskListDetail, TaskListSummary, TasksRead, TaskTemplate
 import { ShowDoneTasksToggle } from '../tasks/ShowDoneTasksToggle'
 import { progressText, readShowDoneTasks, TASK_STATUSES, tasksEmptyCopy, visibleTasks } from '../tasks/labels'
 import { CategoryGroupNames, visibleText } from '../tasks/names'
+import { BtnLabel } from '../design/BtnLabel'
 import { TaskRow } from '../tasks/TaskRow'
 import { useToast } from '../shell/context'
 
@@ -105,7 +106,7 @@ export function AufgabenPage() {
           <h1>Aufgaben</h1>
           <div className="hello">Listen, Vorlagen und eigene Aufgaben bleiben in der Aufgaben-App führend.</div>
         </div>
-        <a className="btn light" href="https://tasks.historic-winterthur.ch/" rel="noreferrer" target="_blank">Zur Aufgaben-App</a>
+        <a className="btn light" href="https://tasks.historic-winterthur.ch/" rel="noreferrer" target="_blank"><BtnLabel icon="external" iconOnly={false}>Zur Aufgaben-App</BtnLabel></a>
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="content-grid">

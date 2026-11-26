@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Application\Event\KnownEventCategories;
 use App\Domain\Event\Attendance;
+use App\Domain\Event\EventCategory;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventDay;
 use App\Domain\Event\EventRepository;
@@ -42,6 +44,7 @@ final class SeedDemoCommand extends Command
 
     public function __construct(
         private EventRepository $events,
+        private KnownEventCategories $categories,
         private PollRepository $polls,
         private RideRepository $rides,
         private VehicleRepository $vehicles,
@@ -305,6 +308,19 @@ final class SeedDemoCommand extends Command
         }
     }
 
+    /** @param list<string> $names */
+    private function category(array $names): ?EventCategory
+    {
+        foreach ($names as $name) {
+            $trimmed = trim($name);
+            if ($trimmed !== '') {
+                return $this->categories->named($trimmed);
+            }
+        }
+
+        return null;
+    }
+
     /** @param list<string> $clubs
      *  @param list<string> $categories
      */
@@ -327,7 +343,7 @@ final class SeedDemoCommand extends Command
         $event = new Event(
             $title,
             $clubs,
-            $categories,
+            $this->category($categories),
             EventStatus::Published,
             $internalDescription,
             null,

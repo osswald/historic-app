@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
 import { AuditHistoryButton } from '../components/AuditHistory'
+import { BtnLabel } from '../design/BtnLabel'
+import { httpsPicture, initials } from '../design/initials'
 import { useMember, useToast } from '../shell/context'
 import { EventHelferPanel } from './EventHelferPanel'
 import { EventNextcloudPanel } from './EventNextcloudPanel'
@@ -102,12 +104,12 @@ export function EventDetailPage() {
   return (
     <section>
       <div className="toolbar" style={{ marginBottom: 14 }}>
-        <Link className="btn small light" to="/veranstaltungen">‹ Veranstaltungen</Link>
+        <Link className="btn small light" to="/veranstaltungen"><BtnLabel icon="back" iconOnly={false}>Veranstaltungen</BtnLabel></Link>
         <div className="detail-actions">
           <span className={event.status === 'published' ? 'pill green' : event.status === 'cancelled' ? 'pill red' : 'pill gray'}>{event.statusLabel}</span>
           {member?.canOrganize ? <AuditHistoryButton entityId={event.id} entityType="event" /> : null}
-          {member?.canOrganize ? <button className="btn small light secondary-action" disabled={copying} type="button" onClick={() => { void copyEvent() }}>Kopieren</button> : null}
-          {member?.canOrganize ? <Link className="btn small" to={`/veranstaltungen/${event.id}/bearbeiten`}>✎ Bearbeiten</Link> : null}
+          {member?.canOrganize ? <button className="btn small light secondary-action" disabled={copying} type="button" onClick={() => { void copyEvent() }}><BtnLabel icon="copy" iconOnly={false}>Kopieren</BtnLabel></button> : null}
+          {member?.canOrganize ? <Link className="btn small" to={`/veranstaltungen/${event.id}/bearbeiten`}><BtnLabel icon="edit">Bearbeiten</BtnLabel></Link> : null}
         </div>
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
@@ -212,8 +214,8 @@ function DayAnswer({
       <div className="panel-inner" style={{ paddingTop: 0 }}>
         <p className="muted">Kannst du an diesem Tag teilnehmen?</p>
         <div className="choice-pair">
-          <button className={day.myResponse === 'yes' ? 'btn choice active-yes' : 'btn choice'} disabled={busy} type="button" onClick={() => { void onAnswer(day.id, 'yes', comment) }}>✓ Ja</button>
-          <button className={day.myResponse === 'no' ? 'btn choice active-no' : 'btn choice'} disabled={busy} type="button" onClick={() => { void onAnswer(day.id, 'no', comment) }}>✕ Nein</button>
+          <button className={day.myResponse === 'yes' ? 'btn choice active-yes' : 'btn choice'} disabled={busy} type="button" onClick={() => { void onAnswer(day.id, 'yes', comment) }}><BtnLabel icon="check" iconOnly={false}>Ja</BtnLabel></button>
+          <button className={day.myResponse === 'no' ? 'btn choice active-no' : 'btn choice'} disabled={busy} type="button" onClick={() => { void onAnswer(day.id, 'no', comment) }}><BtnLabel icon="close" iconOnly={false}>Nein</BtnLabel></button>
         </div>
         <label className="comment-line">
           <span className="muted">Kommentar, optional</span>
@@ -245,6 +247,16 @@ function AttendanceMark({ id }: { id: AttendanceGroupId }) {
   )
 }
 
+function PersonAvatar({ name, picture }: { name: string; picture?: string | null }) {
+  const [failed, setFailed] = useState(false)
+  const url = failed ? null : httpsPicture(picture)
+  return (
+    <span className={url ? 'person-avatar has-photo' : 'person-avatar'}>
+      {url ? <img alt="" src={url} onError={() => setFailed(true)} /> : initials(name)}
+    </span>
+  )
+}
+
 function AttendanceGroups({
   dayId,
   responses,
@@ -254,6 +266,7 @@ function AttendanceGroups({
   responses: EventDay['responses']
   pending: EventDay['pending']
 }) {
+  const member = useMember()
   const groups = groupAttendance(responses, pending)
   const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(
     groups.map((group) => [group.id, attendanceGroupStartsOpen(group.id)]),
@@ -280,14 +293,18 @@ function AttendanceGroups({
             </button>
             {expanded ? (
               <div className="attendance-group-body" id={panelId}>
-                {group.people.map((person, index) => (
-                  <div className="item" key={`${group.id}-${index}`}>
-                    <div>
-                      <b>{person.name}</b>
-                      {person.comment ? <small>{person.comment}</small> : null}
+                {group.people.map((person, index) => {
+                  const picture = httpsPicture(person.picture) ?? (member && person.name === member.displayName ? httpsPicture(member.picture) : null)
+                  return (
+                    <div className="attendance-person" key={`${group.id}-${index}`}>
+                      <PersonAvatar name={person.name} picture={picture} />
+                      <div>
+                        <b>{person.name}</b>
+                        {person.comment ? <small>{person.comment}</small> : null}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ) : null}
           </div>

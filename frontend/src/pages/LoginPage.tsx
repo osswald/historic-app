@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { BtnLabel } from '../design/BtnLabel'
 
 const NOTICES: Record<string, string> = {
   fehlgeschlagen: 'Die Anmeldung hat nicht geklappt. Bitte versuche es erneut.',
@@ -42,7 +43,7 @@ export function LoginPage({ checking = false }: { checking?: boolean }) {
                 <p>Die Vereinsplattform ist den Mitgliedern des SBB Historic-Team Winterthur und des Supporterclubs vorbehalten.</p>
                 <p className="muted">Die Anmeldung läuft über Historic Winterthur SSO.</p>
                 <div className="login-actions">
-                  <a className="btn primary" href="/api/v1/auth/login">Historic Winterthur SSO</a>
+                  <a className="btn primary" href="/api/v1/auth/login"><BtnLabel icon="external" iconOnly={false}>Historic Winterthur SSO</BtnLabel></a>
                 </div>
               </>
             )}

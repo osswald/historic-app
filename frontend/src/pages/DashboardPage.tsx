@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { DashboardData } from '../api/types'
 import { EventRow } from '../components/EventRow'
+import { BtnLabel } from '../design/BtnLabel'
 import { useMember, useToast } from '../shell/context'
 import { readShowDoneTasks, tasksEmptyCopy, visibleTasks } from '../tasks/labels'
 import { TaskListName, visibleText } from '../tasks/names'
@@ -56,7 +57,7 @@ export function DashboardPage() {
           <h1>{greeting()}</h1>
           <div className="hello">Dein Vereinsleben – Veranstaltungen, Rückmeldungen und Aufgaben an einem Ort.</div>
         </div>
-        {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu">+ Veranstaltung</Link> : null}
+        {member?.canOrganize ? <Link className="btn primary" to="/veranstaltungen/neu"><BtnLabel icon="add">Veranstaltung</BtnLabel></Link> : null}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="stats">
@@ -127,7 +128,7 @@ export function DashboardPage() {
                     <b>{shift.title}</b>
                     <small>{[shift.eventTitle, shift.time ?? shift.date, shift.statusLabel].filter(Boolean).join(' · ')}</small>
                   </div>
-                  {shift.url ? <a className="btn small" href={shift.url} rel="noreferrer" target="_blank">Mein Helferlink</a> : null}
+                  {shift.url ? <a className="btn small" href={shift.url} rel="noreferrer" target="_blank"><BtnLabel icon="link">Mein Helferlink</BtnLabel></a> : null}
                 </div>
               ))}
             </div>

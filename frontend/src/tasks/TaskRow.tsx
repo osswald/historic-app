@@ -1,5 +1,12 @@
 import type { TaskItem } from '../api/types'
+import { BtnLabel, type ActionIconName } from '../design/BtnLabel'
 import { statusButtonClass, TASK_STATUSES } from './labels'
+
+const STATUS_ICON: Record<(typeof TASK_STATUSES)[number]['value'], ActionIconName> = {
+  todo: 'circle',
+  in_progress: 'progress',
+  done: 'check',
+}
 import { TaskListName, visibleText } from './names'
 
 export function TaskRow({ task, busy, onStatus }: { task: TaskItem; busy: boolean; onStatus: (status: string) => void }) {
@@ -24,7 +31,7 @@ export function TaskRow({ task, busy, onStatus }: { task: TaskItem; busy: boolea
                   type="button"
                   onClick={() => { if (!current) onStatus(item.value) }}
                 >
-                  {item.label}
+                  <BtnLabel icon={STATUS_ICON[item.value]} iconOnly={false}>{item.label}</BtnLabel>
                 </button>
               )
             })}

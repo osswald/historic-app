@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { EventHelfer, HelferPerson, HelferPlan } from '../api/types'
+import { BtnLabel } from '../design/BtnLabel'
 import { useToast } from '../shell/context'
 
 export function EventHelferPanel({ eventId }: { eventId: string }) {
@@ -59,10 +60,10 @@ export function EventHelferPanel({ eventId }: { eventId: string }) {
       <div className="panel-head">
         <h2>Helferplanung</h2>
         <div className="panel-head-actions">
-          {data?.planUrl ? <a className="btn primary" href={data.planUrl} rel="noreferrer" target="_blank">Helferplanung öffnen</a> : null}
-          {data?.url ? <a className="btn" href={data.url} rel="noreferrer" target="_blank">Mein Helferlink</a> : null}
+          {data?.planUrl ? <a className="btn primary" href={data.planUrl} rel="noreferrer" target="_blank"><BtnLabel icon="external">Helferplanung öffnen</BtnLabel></a> : null}
+          {data?.url ? <a className="btn" href={data.url} rel="noreferrer" target="_blank"><BtnLabel icon="link">Mein Helferlink</BtnLabel></a> : null}
           {data?.canEdit && data.configured && !data.present ? (
-            <button className="btn" disabled={busy} type="button" onClick={() => { void publish() }}>Neu anlegen</button>
+            <button className="btn" disabled={busy} type="button" onClick={() => { void publish() }}><BtnLabel icon="add" iconOnly={false}>Neu anlegen</BtnLabel></button>
           ) : null}
         </div>
       </div>
@@ -72,14 +73,14 @@ export function EventHelferPanel({ eventId }: { eventId: string }) {
         {data?.assigned ? <p>Du bist verbindlich eingeteilt. Die Teilnahme bleibt auf Ja.</p> : null}
         {data?.canEdit && data.configured && !data.present ? (
           <div className="stack" style={{ marginBottom: 12 }}>
-            <label>
-              Bestehende Helferplanung
-              <select value={chosen} onChange={(event) => setChosen(event.target.value)}>
+            <div className="formfield">
+              <label htmlFor="helfer-plan">Bestehende Helferplanung</label>
+              <select className="input" id="helfer-plan" value={chosen} onChange={(event) => setChosen(event.target.value)}>
                 <option value="">Auswählen</option>
                 {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.title}{plan.date ? ` · ${plan.date}` : ''}</option>)}
               </select>
-            </label>
-            <button className="btn primary" disabled={busy || chosen === ''} type="button" onClick={() => { void linkExisting() }}>Verknüpfen</button>
+            </div>
+            <button className="btn primary" disabled={busy || chosen === ''} type="button" onClick={() => { void linkExisting() }}><BtnLabel icon="link">Verknüpfen</BtnLabel></button>
           </div>
         ) : null}
         {data && !data.notice && !data.present ? <p className="empty">Noch keine Helferplanung verknüpft.</p> : null}
@@ -94,7 +95,7 @@ export function EventHelferPanel({ eventId }: { eventId: string }) {
                 {shift.remarks ? <small>{shift.remarks}</small> : null}
                 <People people={shift.people ?? []} />
               </div>
-              {shift.url ? <a className="btn small" href={shift.url} rel="noreferrer" target="_blank">Schicht öffnen</a> : null}
+              {shift.url ? <a className="btn small" href={shift.url} rel="noreferrer" target="_blank"><BtnLabel icon="external">Schicht öffnen</BtnLabel></a> : null}
             </div>
           ))}
         </div>

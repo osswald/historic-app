@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import type { CatalogValue } from '../api/types'
+import { BtnLabel } from '../design/BtnLabel'
 import { useToast } from '../shell/context'
 
 type CatalogKind = 'type' | 'evu'
@@ -15,16 +16,24 @@ export function RideCatalogSettingsPage() {
   const [error, setError] = useState<string | null>(null)
   const [typeName, setTypeName] = useState('')
   const [evuName, setEvuName] = useState('')
+  const [eventCategories, setEventCategories] = useState<CatalogValue[] | null>(null)
+  const [categoryName, setCategoryName] = useState('')
   const [typeError, setTypeError] = useState<string | null>(null)
   const [evuError, setEvuError] = useState<string | null>(null)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    api<Catalog>('/api/v1/ride-catalog')
-      .then((body) => {
-        if (!cancelled) setCatalog(body)
+    Promise.all([
+      api<Catalog>('/api/v1/ride-catalog'),
+      api<{ categories: CatalogValue[] }>('/api/v1/event-categories'),
+    ])
+      .then(([rides, events]) => {
+        if (cancelled) return
+        setCatalog(rides)
+        setEventCategories(events.categories)
       })
       .catch((reason: unknown) => {
         if (!cancelled) setError(reason instanceof ApiError ? reason.message : 'Die Listen konnten nicht geladen werden.')
@@ -115,6 +124,66 @@ export function RideCatalogSettingsPage() {
     }
   }
 
+  async function addCategory(submit?: FormEvent) {
+    submit?.preventDefault()
+    const name = categoryName.trim()
+    if (name === '') {
+      setCategoryError('Bitte einen Namen angeben.')
+      return
+    }
+    setBusy('category')
+    setCategoryError(null)
+    try {
+      const created = await api<CatalogValue>('/api/v1/event-categories', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      })
+      setEventCategories((current) => current ? [...current, created] : [created])
+      setCategoryName('')
+      toast('Veranstaltungskategorie ergänzt.')
+    } catch (reason) {
+      const message = reason instanceof ApiError
+        ? (reason.fields?.name ?? reason.message)
+        : 'Der Wert konnte nicht ergänzt werden.'
+      setCategoryError(message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function setCategoryActive(value: CatalogValue, active: boolean) {
+    setBusy(value.id)
+    setRowErrors((current) => ({ ...current, [value.id]: '' }))
+    try {
+      const updated = await api<CatalogValue>(`/api/v1/event-categories/${value.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ active }),
+      })
+      setEventCategories((current) => current?.map((item) => item.id === updated.id ? updated : item) ?? null)
+      toast(active ? 'Veranstaltungskategorie ist wieder aktiv.' : 'Veranstaltungskategorie ist inaktiv.')
+    } catch (reason) {
+      const message = reason instanceof ApiError ? reason.message : 'Der Eintrag konnte nicht geändert werden.'
+      setRowErrors((current) => ({ ...current, [value.id]: message }))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function removeCategory(value: CatalogValue) {
+    setBusy(value.id)
+    setRowErrors((current) => ({ ...current, [value.id]: '' }))
+    try {
+      await api(`/api/v1/event-categories/${value.id}`, { method: 'DELETE' })
+      setEventCategories((current) => current?.filter((item) => item.id !== value.id) ?? null)
+      toast('Veranstaltungskategorie gelöscht.')
+    } catch (reason) {
+      const message = reason instanceof ApiError ? reason.message : 'Der Eintrag konnte nicht gelöscht werden.'
+      setRowErrors((current) => ({ ...current, [value.id]: message }))
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <section className="settings-page">
       <div className="heading">
@@ -125,11 +194,12 @@ export function RideCatalogSettingsPage() {
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       {!catalog && !error ? <p className="empty">Wird geladen …</p> : null}
-      {catalog ? (
+      {catalog && eventCategories ? (
         <div className="stack">
-          <div className="note">Art der Fahrt und EVU gelten für die ganze Fahrtenplanung. Ein unbenutzter Eintrag kann gelöscht werden. Ein Eintrag, der bereits auf einer Fahrt steht, kann inaktiv gesetzt werden. Inaktive Werte bleiben an bestehenden Fahrten und erscheinen nicht mehr in der Auswahl.</div>
+          <div className="note">Art der Fahrt, EVU und Veranstaltungskategorien gelten für die ganze Planung. Ein unbenutzter Eintrag kann gelöscht werden. Ein Eintrag, der bereits verwendet wird, kann inaktiv gesetzt werden. Inaktive Werte bleiben an bestehenden Einträgen und erscheinen nicht mehr in der Auswahl.</div>
           <CatalogList
             busyId={busy}
+            busyKey="type"
             error={typeError}
             fieldId="ride-type-name"
             label="Art der Fahrt"
@@ -143,6 +213,7 @@ export function RideCatalogSettingsPage() {
           />
           <CatalogList
             busyId={busy}
+            busyKey="evu"
             error={evuError}
             fieldId="evu-name"
             label="EVU"
@@ -153,6 +224,20 @@ export function RideCatalogSettingsPage() {
             onAdd={(submit) => { void add('evu', submit) }}
             onChange={setEvuName}
             onDelete={(value) => { void remove('evu', value) }}
+          />
+          <CatalogList
+            busyId={busy}
+            busyKey="category"
+            error={categoryError}
+            fieldId="event-category-name"
+            label="Veranstaltungskategorie"
+            name={categoryName}
+            rowErrors={rowErrors}
+            values={eventCategories}
+            onActive={(value, active) => { void setCategoryActive(value, active) }}
+            onAdd={(submit) => { void addCategory(submit) }}
+            onChange={setCategoryName}
+            onDelete={(value) => { void removeCategory(value) }}
           />
         </div>
       ) : null}
@@ -168,6 +253,7 @@ function CatalogList({
   error,
   rowErrors,
   busyId,
+  busyKey,
   onChange,
   onAdd,
   onActive,
@@ -180,6 +266,7 @@ function CatalogList({
   error: string | null
   rowErrors: Record<string, string>
   busyId: string | null
+  busyKey: string
   onChange: (value: string) => void
   onAdd: (submit: FormEvent) => void
   onActive: (value: CatalogValue, active: boolean) => void
@@ -205,11 +292,11 @@ function CatalogList({
                     <div className="catalog-actions">
                       {used || inactive ? (
                         <button className="btn small light" disabled={busyId === value.id} type="button" onClick={() => onActive(value, inactive)}>
-                          {inactive ? 'Aktivieren' : 'Inaktiv setzen'}
+                          <BtnLabel icon={inactive ? 'check' : 'close'} iconOnly={false}>{inactive ? 'Aktivieren' : 'Inaktiv setzen'}</BtnLabel>
                         </button>
                       ) : null}
                       {!used ? (
-                        <button className="btn small light" disabled={busyId === value.id} type="button" onClick={() => onDelete(value)}>Löschen</button>
+                        <button className="btn small light" disabled={busyId === value.id} type="button" onClick={() => onDelete(value)}><BtnLabel icon="delete">Löschen</BtnLabel></button>
                       ) : null}
                     </div>
                   </div>
@@ -230,7 +317,7 @@ function CatalogList({
                 value={name}
                 onChange={(input) => onChange(input.target.value)}
               />
-              <button className="btn light" disabled={busyId === (label === 'EVU' ? 'evu' : 'type')} type="submit">Hinzufügen</button>
+              <button className="btn light" disabled={busyId === busyKey} type="submit"><BtnLabel icon="add">Hinzufügen</BtnLabel></button>
             </div>
             {error ? <div className="field-error">{error}</div> : null}
           </div>

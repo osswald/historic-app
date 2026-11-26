@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Tests\Domain\Event;
 
+use App\Application\Event\KnownEventCategories;
 use App\Application\Spond\ImportSpondCalendar;
+use App\Tests\Domain\Event\MemoryEventCategoryRepository;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventRepository;
 use App\Domain\Event\EventStatus;
@@ -16,7 +18,7 @@ final class SpondCalendarImportTest extends TestCase
     public function testASecondReadKeepsStatusAndVehicles(): void
     {
         $events = new MemoryEventRepository();
-        $import = new ImportSpondCalendar($events);
+        $import = new ImportSpondCalendar($events, new KnownEventCategories(new MemoryEventCategoryRepository()));
         $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
 
         $import($this->payload('Führung'), $now);
@@ -26,7 +28,7 @@ final class SpondCalendarImportTest extends TestCase
         $event->change(
             $event->title(),
             ['historic'],
-            ['Spond'],
+            $event->category(),
             EventStatus::Draft,
             $event->internalDescription(),
             $event->publicDescription(),

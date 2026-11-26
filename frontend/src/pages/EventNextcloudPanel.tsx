@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError } from '../api/client'
 import type { EventNextcloud, NextcloudArea, NextcloudDocument, NextcloudFolderChoice } from '../api/types'
+import { BtnLabel } from '../design/BtnLabel'
 import { useToast } from '../shell/context'
 
 export function EventNextcloudPanel({ eventId }: { eventId: string }) {
@@ -106,7 +107,7 @@ export function EventNextcloudPanel({ eventId }: { eventId: string }) {
         {data?.reachable && data.url ? (
           <div className="panel-head-actions">
             <FileUpload busy={busy} onFile={(file) => { void addFile(file) }} />
-            <a className="btn small" href={data.url} rel="noreferrer" target="_blank">Ordner öffnen</a>
+            <a className="btn small" href={data.url} rel="noreferrer" target="_blank"><BtnLabel icon="external">Ordner öffnen</BtnLabel></a>
           </div>
         ) : null}
       </div>
@@ -120,8 +121,8 @@ export function EventNextcloudPanel({ eventId }: { eventId: string }) {
         {canChoose && !picking && !data.proposedName ? <p className="muted">Der Anlass hat noch kein Datum.</p> : null}
         {canChoose && !picking ? (
           <div className="nextcloud-actions">
-            <button className="btn" disabled={busy} type="button" onClick={() => { void openPicker() }}>Bestehenden Ordner wählen</button>
-            <button className="btn primary" disabled={busy || !data.proposedName} type="button" onClick={() => { void createFolder() }}>Ordner anlegen</button>
+            <button className="btn" disabled={busy} type="button" onClick={() => { void openPicker() }}><BtnLabel icon="folder" iconOnly={false}>Bestehenden Ordner wählen</BtnLabel></button>
+            <button className="btn primary" disabled={busy || !data.proposedName} type="button" onClick={() => { void createFolder() }}><BtnLabel icon="add" iconOnly={false}>Ordner anlegen</BtnLabel></button>
           </div>
         ) : null}
         {canChoose && picking ? (
@@ -135,8 +136,8 @@ export function EventNextcloudPanel({ eventId }: { eventId: string }) {
             </label>
             {folders.length === 0 ? <p className="muted">Unter Fahrten_Anlässe liegt kein wählbarer Ordner.</p> : null}
             <div className="nextcloud-actions">
-              <button className="btn primary" disabled={busy || chosen === ''} type="button" onClick={() => { void linkExisting() }}>Verknüpfen</button>
-              <button className="btn" disabled={busy} type="button" onClick={() => setPicking(false)}>Abbrechen</button>
+              <button className="btn primary" disabled={busy || chosen === ''} type="button" onClick={() => { void linkExisting() }}><BtnLabel icon="link">Verknüpfen</BtnLabel></button>
+              <button className="btn" disabled={busy} type="button" onClick={() => setPicking(false)}><BtnLabel icon="close" iconOnly={false}>Abbrechen</BtnLabel></button>
             </div>
           </div>
         ) : null}
@@ -155,7 +156,7 @@ function FileUpload({ busy, onFile }: { busy: boolean; onFile: (file: File | und
 
   return (
     <>
-      <button className="btn small" disabled={busy} type="button" onClick={() => inputRef.current?.click()}>Datei hinzufügen</button>
+      <button className="btn small" disabled={busy} type="button" onClick={() => inputRef.current?.click()}><BtnLabel icon="upload">Datei hinzufügen</BtnLabel></button>
       <input
         ref={inputRef}
         aria-hidden="true"
@@ -179,7 +180,7 @@ function DocumentRow({ item, file = false }: { item: NextcloudDocument | Nextclo
         {file ? <FileMark name={item.name} /> : null}
         <b>{item.name}</b>
       </div>
-      <a className="btn small" href={item.url} rel="noreferrer" target="_blank">Öffnen</a>
+      <a className="btn small" href={item.url} rel="noreferrer" target="_blank"><BtnLabel icon="external">Öffnen</BtnLabel></a>
     </div>
   )
 }

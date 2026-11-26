@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { Answer, Daypart, PollDetail, PollOption } from '../api/types'
 import { AuditHistoryButton } from '../components/AuditHistory'
+import { BtnLabel } from '../design/BtnLabel'
 import { useNarrow } from '../forms/narrow'
 import { useMember, useToast } from '../shell/context'
 
@@ -116,7 +117,7 @@ export function PollDetailPage() {
         {member?.canOrganize ? (
           <div className="detail-actions">
             <AuditHistoryButton entityId={poll.id} entityType="poll" />
-            <Link className="btn light" to={`/umfragen/${poll.id}/bearbeiten`}>Bearbeiten</Link>
+            <Link className="btn light" to={`/umfragen/${poll.id}/bearbeiten`}><BtnLabel icon="edit">Bearbeiten</BtnLabel></Link>
           </div>
         ) : null}
       </div>
@@ -185,8 +186,8 @@ export function PollDetailPage() {
             <textarea className="input" disabled={locked} id="poll-comment" value={comment} onChange={(event) => setComment(event.target.value)} />
           </div>
           <div className="poll-actions">
-            <button className="btn light" disabled={busy || locked} type="button" onClick={declineAll}>Generell Nein</button>
-            <button className="btn primary" disabled={busy || locked} type="button" onClick={() => { void save() }}>Antwort speichern</button>
+            <button className="btn light" disabled={busy || locked} type="button" onClick={declineAll}><BtnLabel icon="close" iconOnly={false}>Generell Nein</BtnLabel></button>
+            <button className="btn primary" disabled={busy || locked} type="button" onClick={() => { void save() }}><BtnLabel icon="save">Antwort speichern</BtnLabel></button>
           </div>
         </div>
       </div>
@@ -215,7 +216,7 @@ export function PollDetailPage() {
                 )
               ))}
             </div>
-            <button className="btn primary" disabled={busy} style={{ marginTop: 14 }} type="button" onClick={() => { void adopt() }}>Ausgewählte übernehmen</button>
+            <button className="btn primary" disabled={busy} style={{ marginTop: 14 }} type="button" onClick={() => { void adopt() }}><BtnLabel icon="check" iconOnly={false}>Ausgewählte übernehmen</BtnLabel></button>
           </div>
         </div>
       ) : null}
@@ -229,8 +230,8 @@ function Slot({ option, choice, locked, busy, onChoose }: { option: PollOption; 
       <div>
         {option.daypartLabel ? <div className="slot-label">{option.daypartLabel}</div> : null}
         <div className="choice-pair">
-          <button className={choice === 'yes' ? 'btn small choice active-yes' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'yes')}>✓ Ja</button>
-          <button className={choice === 'no' ? 'btn small choice active-no' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'no')}>✕ Nein</button>
+          <button className={choice === 'yes' ? 'btn small choice active-yes' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'yes')}><BtnLabel icon="check" iconOnly={false}>Ja</BtnLabel></button>
+          <button className={choice === 'no' ? 'btn small choice active-no' : 'btn small choice'} disabled={locked || busy} type="button" onClick={() => onChoose(option.id, 'no')}><BtnLabel icon="close" iconOnly={false}>Nein</BtnLabel></button>
         </div>
         {option.needsSupplement ? <small>Ergänzung erforderlich</small> : null}
         <AnswerLines answers={option.yesAnswers ?? []} count={option.yesCount} label="Ja" />
