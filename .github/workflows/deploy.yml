@@ -7,7 +7,8 @@ name: Deploy
 # group must allow 22, 80 and 443.
 # Secrets, with no values in this file: SSH_HOST (the floating IP), SSH_USER,
 # SSH_PRIVATE_KEY, APP_SECRET, DATABASE_URL, POSTGRES_PASSWORD, AUTH0_DOMAIN,
-# AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_AUDIENCE, AUTH0_GROUPS_CLAIM.
+# AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_AUDIENCE, AUTH0_GROUPS_CLAIM,
+# TASKS_API_BASE, TASKS_API_KEY, TASKS_API_TOKEN.
 # DATABASE_URL must use hostname "database" and the same password as POSTGRES_PASSWORD.
 # The SSH user needs passwordless sudo for the first Docker install.
 # AUTH_DEV_MODE is 0 on this host. The demo Bearer token is refused in production.
@@ -48,6 +49,9 @@ jobs:
           AUTH0_CLIENT_SECRET: ${{ secrets.AUTH0_CLIENT_SECRET }}
           AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
           AUTH0_GROUPS_CLAIM: ${{ secrets.AUTH0_GROUPS_CLAIM }}
+          TASKS_API_BASE: ${{ secrets.TASKS_API_BASE }}
+          TASKS_API_KEY: ${{ secrets.TASKS_API_KEY }}
+          TASKS_API_TOKEN: ${{ secrets.TASKS_API_TOKEN }}
         run: |
           set -euo pipefail
           install -d -m 700 "${HOME}/.ssh"
@@ -101,6 +105,9 @@ jobs:
             printf 'AUTH0_CLIENT_SECRET=%s\n' "$AUTH0_CLIENT_SECRET"
             printf 'AUTH0_AUDIENCE=%s\n' "$AUTH0_AUDIENCE"
             printf 'AUTH0_GROUPS_CLAIM=%s\n' "$AUTH0_GROUPS_CLAIM"
+            printf 'TASKS_API_BASE=%s\n' "$TASKS_API_BASE"
+            printf 'TASKS_API_KEY=%s\n' "$TASKS_API_KEY"
+            printf 'TASKS_API_TOKEN=%s\n' "$TASKS_API_TOKEN"
             printf 'AUTH_DEV_MODE=%s\n' '0'
             printf '%s\n' 'CORS_ALLOW_ORIGIN=^https://app[.]historic-winterthur[.]ch$'
           } > "$envfile"

@@ -47,6 +47,9 @@ services:
       SPOND_USERNAME: ${SPOND_USERNAME:-}
       SPOND_PASSWORD: ${SPOND_PASSWORD:-}
       SPOND_PYTHON: /opt/spond/bin/python
+      TASKS_API_BASE: ${TASKS_API_BASE:-}
+      TASKS_API_KEY: ${TASKS_API_KEY:-}
+      TASKS_API_TOKEN: ${TASKS_API_TOKEN:-}
     volumes:
       - historic_caddy_data:/data
       - historic_caddy_config:/config
