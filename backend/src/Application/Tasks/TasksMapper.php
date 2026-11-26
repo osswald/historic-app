@@ -28,7 +28,7 @@ final class TasksMapper
             }
             $lists[] = [
                 'id' => $id,
-                'name' => self::text($row['name'] ?? null),
+                'name' => self::firstText($row, ['name', 'title']),
                 'progress' => self::progress($row),
                 'addressable' => self::safeId($id),
             ];
@@ -49,7 +49,7 @@ final class TasksMapper
 
         return [
             'id' => $id,
-            'name' => self::text($row['name'] ?? null),
+            'name' => self::firstText($row, ['name', 'title']),
             'description' => self::text($row['description'] ?? null),
             'categoryId' => self::text($row['category_id'] ?? null),
             'orgGroupId' => self::text($row['org_group_id'] ?? null),
@@ -78,6 +78,7 @@ final class TasksMapper
             }
             $templates[] = [
                 'id' => $id,
+                'name' => self::firstText($row, ['name', 'title']),
                 'taskCount' => self::number($row['task_count'] ?? null),
                 'addressable' => self::safeId($id),
             ];
@@ -104,6 +105,8 @@ final class TasksMapper
             $status = self::text($row['status'] ?? null);
             $tasks[] = [
                 'id' => $id,
+                'title' => self::firstText($row, ['title', 'name', 'summary']),
+                'details' => self::firstText($row, ['description', 'details', 'body', 'text']),
                 'status' => $status,
                 'statusLabel' => is_string($status) ? TaskStatus::label($status) : null,
                 'addressable' => self::safeId($id),
@@ -169,6 +172,22 @@ final class TasksMapper
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<string> $keys
+     */
+    private static function firstText(array $row, array $keys): ?string
+    {
+        foreach ($keys as $key) {
+            $text = self::text($row[$key] ?? null);
+            if ($text !== null) {
+                return $text;
+            }
+        }
+
+        return null;
     }
 
     private static function text(mixed $value): ?string

@@ -256,6 +256,8 @@ export type TaskProgress = { done: number | null; total: number | null; percent:
 
 export type TaskItem = {
   id: string
+  title: string | null
+  details: string | null
   status: string | null
   statusLabel: string | null
   addressable: boolean
@@ -283,6 +285,7 @@ export type TaskListDetail = {
 
 export type TaskTemplate = {
   id: string
+  name: string | null
   taskCount: number | null
   addressable: boolean
 }

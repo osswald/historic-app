@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import type { TaskItem, TaskListDetail, TaskListSummary, TasksRead, TaskTemplate } from '../api/types'
-import { progressText, TASK_STATUSES } from '../tasks/labels'
+import { ShowDoneTasksToggle } from '../tasks/ShowDoneTasksToggle'
+import { progressText, readShowDoneTasks, TASK_STATUSES, tasksEmptyCopy, visibleTasks } from '../tasks/labels'
 import { useToast } from '../shell/context'
 
 type ListsPayload = TasksRead<{ lists: TaskListSummary[] }>
@@ -25,6 +26,7 @@ export function AufgabenPage() {
   const [orgGroupId, setOrgGroupId] = useState('')
   const [personal, setPersonal] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [showDone, setShowDone] = useState(readShowDoneTasks)
 
   function loadTasks(nextStatus = status) {
     const query = nextStatus ? `?status=${encodeURIComponent(nextStatus)}` : ''
@@ -97,6 +99,10 @@ export function AufgabenPage() {
     }
   }
 
+  const showCompleted = showDone || status === 'done'
+  const mine = visibleTasks(tasks?.tasks ?? [], showCompleted)
+  const opened = detail?.list ? visibleTasks(detail.list.tasks, showDone) : []
+
   return (
     <section>
       <div className="heading">
@@ -111,16 +117,19 @@ export function AufgabenPage() {
       <div className="content-grid">
         <div className="stack">
           <div className="panel">
-            <div className="panel-head">
+            <div className="panel-head tasks-head">
               <h2>Meine Aufgaben</h2>
-              <select className="input" value={status} onChange={(event) => { setStatus(event.target.value); void loadTasks(event.target.value) }}>
-                <option value="">Alle Status</option>
-                {TASK_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-              </select>
+              <div className="tasks-head-actions">
+                <ShowDoneTasksToggle checked={showDone} onChange={setShowDone} />
+                <select className="input" value={status} onChange={(event) => { setStatus(event.target.value); void loadTasks(event.target.value) }}>
+                  <option value="">Alle Status</option>
+                  {TASK_STATUSES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              </div>
             </div>
-            <Notice text={sectionText(tasks, tasks?.tasks.length ?? 0, 'Keine eigenen Aufgaben.')} />
+            <Notice text={sectionText(tasks, mine.length, tasksEmptyCopy(tasks?.tasks.length ?? 0, showCompleted, 'Keine eigenen Aufgaben.'))} />
             <div className="simplelist">
-              {(tasks?.tasks ?? []).map((task) => <TaskRow busy={busy} key={task.id} task={task} onStatus={(next) => { void changeStatus(task.id, next) }} />)}
+              {mine.map((task) => <TaskRow busy={busy} key={task.id} task={task} onStatus={(next) => { void changeStatus(task.id, next) }} />)}
             </div>
           </div>
           <div className="panel">
@@ -139,12 +148,16 @@ export function AufgabenPage() {
             {detail?.notice ? <p className="empty">{detail.notice}</p> : null}
             {detail?.list ? (
               <div className="panel-inner">
-                <b>{detail.list.name ?? detail.list.id}</b>
+                <div className="tasks-list-head">
+                  <b>{detail.list.name ?? detail.list.id}</b>
+                  {detail.list.tasks.length > 0 ? <ShowDoneTasksToggle checked={showDone} onChange={setShowDone} /> : null}
+                </div>
                 {detail.list.description ? <p className="muted">{detail.list.description}</p> : null}
                 <p className="muted">{progressText(detail.list.progress) ?? 'Kein Fortschritt'}</p>
                 {detail.list.isPersonal ? <p className="muted">Persönliche Liste</p> : null}
+                {detail.list.tasks.length > 0 && opened.length === 0 ? <p className="empty">Keine offenen Aufgaben.</p> : null}
                 <div className="simplelist">
-                  {detail.list.tasks.map((task) => <TaskRow busy={busy} key={task.id} task={task} onStatus={(next) => { void changeStatus(task.id, next) }} />)}
+                  {opened.map((task) => <TaskRow busy={busy} key={task.id} task={task} onStatus={(next) => { void changeStatus(task.id, next) }} />)}
                 </div>
               </div>
             ) : null}
@@ -158,7 +171,7 @@ export function AufgabenPage() {
               {(templates?.templates ?? []).map((template) => (
                 <div className="item" key={template.id}>
                   <div>
-                    <b>{template.id}</b>
+                    <b>{template.name ?? template.id}</b>
                     <small>{template.taskCount === null ? 'Aufgabenanzahl offen' : `${template.taskCount} Aufgaben`}</small>
                   </div>
                 </div>
@@ -181,7 +194,7 @@ export function AufgabenPage() {
                 <select className="input" id="task-list-template" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
                   <option value="">Ohne Vorlage</option>
                   {(templates?.templates ?? []).filter((template) => template.addressable).map((template) => (
-                    <option key={template.id} value={template.id}>{template.id}{template.taskCount === null ? '' : ` · ${template.taskCount}`}</option>
+                    <option key={template.id} value={template.id}>{template.name ?? template.id}{template.taskCount === null ? '' : ` · ${template.taskCount}`}</option>
                   ))}
                 </select>
               </div>
@@ -222,7 +235,8 @@ function TaskRow({ task, busy, onStatus }: { task: TaskItem; busy: boolean; onSt
     <div className="item">
       <div className={task.status === 'done' ? 'check checked' : 'check'}>{task.status === 'done' ? '✓' : ''}</div>
       <div>
-        <b>{task.id}</b>
+        <b>{task.title ?? task.id}</b>
+        {task.details ? <small>{task.details}</small> : null}
         <small>{task.statusLabel ?? task.status ?? 'Ohne Status'}</small>
         {task.addressable ? (
           <span className="check-line">

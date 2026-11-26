@@ -4,6 +4,8 @@ import { api, ApiError } from '../api/client'
 import type { DashboardData } from '../api/types'
 import { EventRow } from '../components/EventRow'
 import { useMember, useToast } from '../shell/context'
+import { readShowDoneTasks, tasksEmptyCopy, visibleTasks } from '../tasks/labels'
+import { ShowDoneTasksToggle } from '../tasks/ShowDoneTasksToggle'
 
 function greeting(): string {
   const hour = new Date().getHours()
@@ -18,6 +20,7 @@ export function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [showDone, setShowDone] = useState(readShowDoneTasks)
 
   function load() {
     setError(null)
@@ -42,6 +45,7 @@ export function DashboardPage() {
   }
 
   const counts = data?.counts
+  const homeTasks = visibleTasks(data?.tasks ?? [], showDone)
 
   return (
     <section>
@@ -88,18 +92,22 @@ export function DashboardPage() {
         </div>
         <div className="stack">
           <div className="panel">
-            <div className="panel-head">
+            <div className="panel-head tasks-head">
               <h2>Meine Aufgaben</h2>
-              <Link className="a" to="/aufgaben">Aufgaben öffnen ›</Link>
+              <div className="tasks-head-actions">
+                <ShowDoneTasksToggle checked={showDone} onChange={setShowDone} />
+                <Link className="a" to="/aufgaben">Aufgaben öffnen ›</Link>
+              </div>
             </div>
             {data?.tasksNotice ? <p className="empty">{data.tasksNotice}</p> : null}
-            {!data?.tasksNotice && data && data.tasks.length === 0 ? <p className="empty">Keine eigenen Aufgaben.</p> : null}
+            {!data?.tasksNotice && data && homeTasks.length === 0 ? <p className="empty">{tasksEmptyCopy(data.tasks.length, showDone, 'Keine eigenen Aufgaben.')}</p> : null}
             <div className="simplelist">
-              {(data?.tasks ?? []).map((task) => (
+              {homeTasks.map((task) => (
                 <div className="item" key={task.id}>
                   <div className={task.status === 'done' ? 'check checked' : 'check'}>{task.status === 'done' ? '✓' : ''}</div>
                   <div>
-                    <b>{task.id}</b>
+                    <b>{task.title ?? task.id}</b>
+                    {task.details ? <small>{task.details}</small> : null}
                     <small>{task.statusLabel ?? task.status ?? 'Ohne Status'}</small>
                   </div>
                 </div>

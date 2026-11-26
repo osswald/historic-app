@@ -1,5 +1,7 @@
 import type { TaskProgress } from '../api/types'
 
+const SHOW_DONE_KEY = 'historic.tasks.showDone'
+
 export const TASK_STATUSES = [
   { value: 'todo', label: 'Offen' },
   { value: 'in_progress', label: 'In Arbeit' },
@@ -21,4 +23,30 @@ export function progressText(progress: TaskProgress | null): string | null {
     parts.push(`${percent} %`)
   }
   return parts.length > 0 ? parts.join(' · ') : null
+}
+
+export function readShowDoneTasks(): boolean {
+  try {
+    return sessionStorage.getItem(SHOW_DONE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function writeShowDoneTasks(show: boolean): void {
+  try {
+    sessionStorage.setItem(SHOW_DONE_KEY, show ? '1' : '0')
+  } catch {
+    // Private mode can block storage; the toggle still works for this page view.
+  }
+}
+
+export function visibleTasks<T extends { status: string | null }>(tasks: readonly T[], showDone: boolean): T[] {
+  if (showDone) return [...tasks]
+  return tasks.filter((task) => task.status !== 'done')
+}
+
+export function tasksEmptyCopy(total: number, showDone: boolean, empty: string): string {
+  if (!showDone && total > 0) return 'Keine offenen Aufgaben.'
+  return empty
 }

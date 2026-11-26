@@ -238,3 +238,18 @@ button.item { width: 100%; background: transparent; border-left: 0; border-right
 @media (max-width: 700px) {
   .events-toolbar .toggle { display: inline-flex; min-height: 44px; align-items: center; }
 }
+.tasks-head { flex-wrap: wrap; align-items: center; }
+.tasks-head-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 10px 14px; margin-left: auto; min-width: 0; }
+.tasks-head-actions .input { width: auto; min-width: 9.5rem; max-width: 100%; }
+.tasks-head .toggle, .tasks-list-head .toggle { margin: 0; }
+.tasks-list-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; }
+@media (max-width: 700px) {
+  .tasks-head { align-items: stretch; }
+  .tasks-head-actions { width: 100%; margin-left: 0; justify-content: flex-start; }
+  .tasks-head .toggle, .tasks-list-head .toggle, .tasks-head-actions .toggle {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+  }
+  .tasks-head-actions .input { flex: 1 1 9rem; min-height: 44px; }
+}
