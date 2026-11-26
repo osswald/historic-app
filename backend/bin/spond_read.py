@@ -213,11 +213,15 @@ async def read_window(client: spond.Spond, group_id: str, min_start: datetime, m
         print("Die Terminliste ist unvollständig.", file=sys.stderr)
         raise SystemExit(1)
     mid = start_day + timedelta(days=(end_day - start_day).days // 2)
-    left_end = datetime(mid.year, mid.month, mid.day, tzinfo=timezone.utc)
     right = mid + timedelta(days=1)
     right_start = datetime(right.year, right.month, right.day, tzinfo=timezone.utc)
+    # The midpoint day stays in the left window. The next day starts the right window.
+    left_end = right_start - timedelta(microseconds=1)
+    if not (min_start < left_end < max_start):
+        print("Die Terminliste ist unvollständig.", file=sys.stderr)
+        raise SystemExit(1)
     earlier = await read_window(client, group_id, min_start, left_end)
-    later = await read_window(client, group_id, right_start, max_start)
+    later = await read_window(client, group_id, right_start, max_start) if right_start < max_start else []
     return earlier + later
 
 
