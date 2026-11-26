@@ -67,6 +67,7 @@ final class RecordAttendance
             $before,
             $response->toAudit(),
             $now,
+            $actor->displayName(),
         );
         $this->entityManager->flush();
     }

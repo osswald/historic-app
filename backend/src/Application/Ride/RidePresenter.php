@@ -43,14 +43,16 @@ final class RidePresenter
             'warnings' => $canEdit ? array_values($warnings) : [],
             'rides' => array_map(fn (Ride $ride): array => $this->ride($ride, $canEdit), $rides),
             'planning' => $this->planning($this->plans->forEvent($event->id())),
-            'rideTypes' => array_map(static fn (RideType $type): array => [
+            'rideTypes' => array_values(array_map(static fn (RideType $type): array => [
                 'id' => $type->id(),
                 'name' => $type->name(),
-            ], $this->rideTypes->all()),
-            'evus' => array_map(static fn (Evu $evu): array => [
+                'active' => true,
+            ], array_filter($this->rideTypes->all(), static fn (RideType $type): bool => $type->isActive()))),
+            'evus' => array_values(array_map(static fn (Evu $evu): array => [
                 'id' => $evu->id(),
                 'name' => $evu->name(),
-            ], $this->evus->all()),
+                'active' => true,
+            ], array_filter($this->evus->all(), static fn (Evu $evu): bool => $evu->isActive()))),
             'pathStatuses' => array_map(static fn (PathStatus $status): array => [
                 'value' => $status->value,
                 'label' => $status->label(),
@@ -102,10 +104,12 @@ final class RidePresenter
             'rideType' => $ride->rideType() instanceof RideType ? [
                 'id' => $ride->rideType()->id(),
                 'name' => $ride->rideType()->name(),
+                'active' => $ride->rideType()->isActive(),
             ] : null,
             'evu' => $ride->evu() instanceof Evu ? [
                 'id' => $ride->evu()->id(),
                 'name' => $ride->evu()->name(),
+                'active' => $ride->evu()->isActive(),
             ] : null,
             'vehicles' => array_map(fn (RideVehicle $assignment): array => $this->assignment($assignment), $ride->assignments()),
             'internalNote' => $canSeeInternal ? $ride->internalNote() : null,

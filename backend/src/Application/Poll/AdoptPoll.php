@@ -65,8 +65,8 @@ final class AdoptPoll
             );
             $this->events->add($event);
             $option->adopt($event->id());
-            $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'create', null, $event->toAudit(), $now);
-            $this->audit->record($actor->getUserIdentifier(), 'poll', $poll->id(), 'adopt', $before, $poll->toAudit(), $now);
+            $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'create', null, $event->toAudit(), $now, $actor->displayName());
+            $this->audit->record($actor->getUserIdentifier(), 'poll', $poll->id(), 'adopt', $before, $poll->toAudit(), $now, $actor->displayName());
             $created[] = $event;
         }
         $this->entityManager->flush();

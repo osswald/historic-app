@@ -16,4 +16,8 @@ interface EvuRepository
     public function all(): array;
 
     public function nextSortOrder(): int;
+
+    public function remove(Evu $evu): void;
+
+    public function rideCount(Evu $evu): int;
 }

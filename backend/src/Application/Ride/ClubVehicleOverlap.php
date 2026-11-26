@@ -26,23 +26,14 @@ final class ClubVehicleOverlap
         $local = $this->pairs($this->unique($rides));
         $other = $this->pairs($this->unique($elsewhere));
         $messages = [];
-        $count = count($local);
-        for ($index = 0; $index < $count; ++$index) {
-            for ($otherIndex = $index + 1; $otherIndex < $count; ++$otherIndex) {
-                if ($this->conflicts($local[$index], $local[$otherIndex])) {
-                    $messages[] = sprintf(
-                        'Das Vereinsfahrzeug „%s“ ist in dieser Veranstaltung doppelt eingeteilt.',
-                        $local[$index]['label'],
-                    );
-                }
-            }
+        foreach ($local as $assignment) {
             foreach ($other as $candidate) {
-                if (!$this->conflicts($local[$index], $candidate)) {
+                if (!$this->conflicts($assignment, $candidate)) {
                     continue;
                 }
                 $messages[] = sprintf(
                     'Das Vereinsfahrzeug „%s“ überschneidet sich mit einer Fahrt der Veranstaltung „%s“ (%s).',
-                    $local[$index]['label'],
+                    $assignment['label'],
                     $candidate['eventTitle'],
                     $candidate['statusLabel'],
                 );

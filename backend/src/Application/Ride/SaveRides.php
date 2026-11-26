@@ -56,6 +56,7 @@ final class SaveRides
         }
 
         $event = $this->events->visible($eventId, $actor);
+        $eventBefore = $event->toAudit();
         $planningErrors = [];
         $planning = array_key_exists('planning', $payload) ? $this->normalizePlanning($payload['planning'], $planningErrors) : null;
         $fleet = [];
@@ -147,25 +148,34 @@ final class SaveRides
             $this->storePlanning($actor, $event, $planning, $now);
         }
         foreach ($creates as $ride) {
-            $this->audit->record($actor->getUserIdentifier(), 'ride', $ride->id(), 'create', null, $ride->toAudit(), $now);
+            $this->audit->record($actor->getUserIdentifier(), 'ride', $ride->id(), 'create', null, $ride->toAudit(), $now, $actor->displayName());
         }
         foreach ($updates as $update) {
+            $after = $update['ride']->toAudit();
+            if ($update['before'] === $after) {
+                continue;
+            }
             $this->audit->record(
                 $actor->getUserIdentifier(),
                 'ride',
                 $update['ride']->id(),
                 'update',
                 $update['before'],
-                $update['ride']->toAudit(),
+                $after,
                 $now,
+                $actor->displayName(),
             );
         }
         foreach ($existing as $id => $ride) {
             if (isset($kept[$id])) {
                 continue;
             }
-            $this->audit->record($actor->getUserIdentifier(), 'ride', $ride->id(), 'delete', $ride->toAudit(), null, $now);
+            $this->audit->record($actor->getUserIdentifier(), 'ride', $ride->id(), 'delete', $ride->toAudit(), null, $now, $actor->displayName());
             $this->rides->remove($ride);
+        }
+        $eventAfter = $event->toAudit();
+        if ($eventBefore !== $eventAfter) {
+            $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'update', $eventBefore, $eventAfter, $now, $actor->displayName());
         }
 
         $this->entityManager->flush();
@@ -265,11 +275,15 @@ final class SaveRides
                 $errors['rides.'.$index.'.trainNumber'] = 'Bitte höchstens 20 Zeichen für die Zugnummer angeben.';
             }
 
+            $currentRide = $id !== '' ? $this->rides->get($id) : null;
+            if (!$currentRide instanceof Ride || $currentRide->event()->id() !== $event->id()) {
+                $currentRide = null;
+            }
             $origin = $this->station($ride['origin'] ?? null, 'rides.'.$index.'.origin', 'Startbahnhof', $errors);
             $destination = $this->station($ride['destination'] ?? null, 'rides.'.$index.'.destination', 'Zielbahnhof', $errors);
             $viaChoice = $this->vias($ride, $index, $errors);
-            $rideTypeChoice = $this->catalogChoice($ride, 'rideTypeId', $rideTypeIndex, 'rides.'.$index.'.rideTypeId', 'Bitte eine Art der Fahrt aus der Liste wählen.', $errors);
-            $evuChoice = $this->catalogChoice($ride, 'evuId', $evuIndex, 'rides.'.$index.'.evuId', 'Bitte ein EVU aus der Liste wählen.', $errors);
+            $rideTypeChoice = $this->catalogChoice($ride, 'rideTypeId', $rideTypeIndex, 'rides.'.$index.'.rideTypeId', 'Bitte eine Art der Fahrt aus der Liste wählen.', 'Diese Art der Fahrt ist nicht mehr aktiv.', $currentRide?->rideType()?->id(), $errors);
+            $evuChoice = $this->catalogChoice($ride, 'evuId', $evuIndex, 'rides.'.$index.'.evuId', 'Bitte ein EVU aus der Liste wählen.', 'Dieses EVU ist nicht mehr aktiv.', $currentRide?->evu()?->id(), $errors);
             $vehicles = $this->vehiclesFor($ride['vehicles'] ?? null, $index, $fleet, $errors);
 
             $internalNote = trim((string) ($ride['internalNote'] ?? ''));
@@ -393,7 +407,7 @@ final class SaveRides
             return;
         }
 
-        $this->audit->record($actor->getUserIdentifier(), 'event_ride_plan', $current->id(), $action, $before, $after, $now);
+        $this->audit->record($actor->getUserIdentifier(), 'event_ride_plan', $current->id(), $action, $before, $after, $now, $actor->displayName());
     }
 
     /**
@@ -545,7 +559,7 @@ final class SaveRides
      * @param array<string, string> $errors
      * @return array{apply: bool, value: T|null}
      */
-    private function catalogChoice(array $ride, string $field, array $known, string $errorKey, string $message, array &$errors): array
+    private function catalogChoice(array $ride, string $field, array $known, string $errorKey, string $message, string $inactiveMessage, ?string $currentId, array &$errors): array
     {
         if (!array_key_exists($field, $ride)) {
             return ['apply' => false, 'value' => null];
@@ -560,8 +574,19 @@ final class SaveRides
 
             return ['apply' => true, 'value' => null];
         }
+        $chosen = $known[$id];
+        $active = match (true) {
+            $chosen instanceof RideType => $chosen->isActive(),
+            $chosen instanceof Evu => $chosen->isActive(),
+            default => true,
+        };
+        if (!$active && $id !== $currentId) {
+            $errors[$errorKey] = $inactiveMessage;
 
-        return ['apply' => true, 'value' => $known[$id]];
+            return ['apply' => true, 'value' => null];
+        }
+
+        return ['apply' => true, 'value' => $chosen];
     }
 
     /** @return array<string, RideType> */

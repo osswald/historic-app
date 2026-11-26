@@ -33,7 +33,7 @@ final class RecordBatteryCharge
         $chargedAt = $this->moment($payload['chargedOn'] ?? null);
         $now = $this->clock->now();
         $charge = $vehicle->recordBattery($actor->getUserIdentifier(), $actor->displayName(), $chargedAt);
-        $this->audit->record($actor->getUserIdentifier(), 'battery_charge', $charge->id(), 'create', null, $charge->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'battery_charge', $charge->id(), 'create', null, $charge->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $vehicle;

@@ -49,7 +49,7 @@ final class SaveVehicle
             $input['nextMaintenanceOn'],
         );
         $this->vehicles->add($vehicle);
-        $this->audit->record($actor->getUserIdentifier(), 'vehicle', $vehicle->id(), 'create', null, $vehicle->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'vehicle', $vehicle->id(), 'create', null, $vehicle->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $vehicle;
@@ -81,7 +81,7 @@ final class SaveVehicle
             $input['nextMaintenanceOn'],
             $now,
         );
-        $this->audit->record($actor->getUserIdentifier(), 'vehicle', $vehicle->id(), 'update', $before, $vehicle->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'vehicle', $vehicle->id(), 'update', $before, $vehicle->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $vehicle;

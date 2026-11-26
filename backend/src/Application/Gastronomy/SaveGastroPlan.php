@@ -40,11 +40,11 @@ final class SaveGastroPlan
             $plan = new GastroPlan($event, $now);
             $plan->replace($input['notes'], $input['guestCount'], $input['dishes'], $input['responsible'], $now);
             $this->plans->add($plan);
-            $this->audit->record($actor->getUserIdentifier(), 'gastro_plan', $plan->id(), 'create', null, $plan->toAudit(), $now);
+            $this->audit->record($actor->getUserIdentifier(), 'gastro_plan', $plan->id(), 'create', null, $plan->toAudit(), $now, $actor->displayName());
         } else {
             $before = $plan->toAudit();
             $plan->replace($input['notes'], $input['guestCount'], $input['dishes'], $input['responsible'], $now);
-            $this->audit->record($actor->getUserIdentifier(), 'gastro_plan', $plan->id(), 'update', $before, $plan->toAudit(), $now);
+            $this->audit->record($actor->getUserIdentifier(), 'gastro_plan', $plan->id(), 'update', $before, $plan->toAudit(), $now, $actor->displayName());
         }
         $this->entityManager->flush();
 

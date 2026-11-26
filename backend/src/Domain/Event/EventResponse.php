@@ -202,6 +202,7 @@ class EventResponse
     public function toAudit(): array
     {
         return [
+            'eventId' => $this->eventDay->event()->id(),
             'answer' => $this->answer->value,
             'comment' => $this->comment,
             'revision' => $this->revision,

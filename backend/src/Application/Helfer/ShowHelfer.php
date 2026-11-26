@@ -11,6 +11,7 @@ use App\Application\ZurichClock;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventHelferLink;
 use App\Domain\Event\EventHelferLinkRepository;
+use App\Infrastructure\Audit\AuditRecorder;
 use App\Security\MemberUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -22,6 +23,7 @@ final class ShowHelfer
         private HelferClient $client,
         private EventCatalog $events,
         private EventHelferLinkRepository $links,
+        private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
     ) {
@@ -140,7 +142,7 @@ final class ShowHelfer
                 }
             }
             if (HelferMapper::isUuid($plan['id'])) {
-                $this->remember($event, $plan['id'], $plan['title'], $plan['url']);
+                $this->remember($event, $plan['id'], $plan['title'], $plan['url'], $member, 'helfer_created');
             }
         } catch (HelferNotConfigured|HelferBaseInvalid|HelferRejected|HelferNotFound|UpstreamUnavailable $exception) {
             throw $exception;
@@ -167,7 +169,7 @@ final class ShowHelfer
             throw new UpstreamUnavailable('Die Helferplanung hat nicht mit einem Anlass geantwortet.');
         }
         $plan = HelferMapper::plan($loaded);
-        $this->remember($event, $helferEventId, $plan['title'], $plan['url']);
+        $this->remember($event, $helferEventId, $plan['title'], $plan['url'], $member, 'helfer_linked');
 
         return $this->forEvent($member, $event->id());
     }
@@ -357,13 +359,29 @@ final class ShowHelfer
         return ['title' => $plan['title'], 'url' => $plan['url']];
     }
 
-    private function remember(Event $event, string $helferEventId, ?string $title, ?string $url): void
+    private function remember(Event $event, string $helferEventId, ?string $title, ?string $url, MemberUser $member, string $action): void
     {
         $link = $this->links->forEvent($event->id());
+        $before = null;
+        $changed = true;
         if ($link instanceof EventHelferLink) {
+            $changed = $link->helferEventId() !== $helferEventId || $link->title() !== $title;
+            $before = ['plan' => $link->title()];
             $link->retarget($helferEventId, $title, $url);
         } else {
             $this->links->add(new EventHelferLink($event, $helferEventId, $title, $url, $this->clock->now()));
+        }
+        if ($changed) {
+            $this->audit->record(
+                $member->getUserIdentifier(),
+                'event',
+                $event->id(),
+                $action,
+                $before,
+                ['plan' => $title],
+                $this->clock->now(),
+                $member->displayName(),
+            );
         }
         $this->entityManager->flush();
     }

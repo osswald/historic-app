@@ -40,6 +40,12 @@
         <env name="TASKS_API_TOKEN" value="" force="true" />
         <server name="TASKS_API_KEY" value="" force="true" />
         <env name="TASKS_API_KEY" value="" force="true" />
+        <server name="NEXTCLOUD_BASE" value="" force="true" />
+        <env name="NEXTCLOUD_BASE" value="" force="true" />
+        <server name="NEXTCLOUD_USER" value="" force="true" />
+        <env name="NEXTCLOUD_USER" value="" force="true" />
+        <server name="NEXTCLOUD_APP_PASSWORD" value="" force="true" />
+        <env name="NEXTCLOUD_APP_PASSWORD" value="" force="true" />
     </php>
 
     <testsuites>

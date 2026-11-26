@@ -16,4 +16,8 @@ interface RideTypeRepository
     public function all(): array;
 
     public function nextSortOrder(): int;
+
+    public function remove(RideType $rideType): void;
+
+    public function rideCount(RideType $rideType): int;
 }

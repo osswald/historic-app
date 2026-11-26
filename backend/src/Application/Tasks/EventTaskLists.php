@@ -11,6 +11,7 @@ use App\Application\ZurichClock;
 use App\Domain\Event\Event;
 use App\Domain\Event\EventTaskListLink;
 use App\Domain\Event\EventTaskListRepository;
+use App\Infrastructure\Audit\AuditRecorder;
 use App\Security\MemberUser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
@@ -22,6 +23,7 @@ final class EventTaskLists
         private EventTaskListRepository $links,
         private ShowTasks $tasks,
         private TasksClient $client,
+        private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
     ) {
@@ -119,20 +121,34 @@ final class EventTaskLists
         if ($name === '') {
             $name = null;
         }
-        $this->attach($event, $id, $name);
+        $this->attach($member, $event, $id, $name);
 
         return ['id' => $id, 'name' => $name];
     }
 
-    private function attach(Event $event, string $taskListId, ?string $name): void
+    private function attach(MemberUser $member, Event $event, string $taskListId, ?string $name): void
     {
         $existing = $this->links->findForEvent($event->id(), $taskListId);
+        $before = $existing instanceof EventTaskListLink ? ['taskList' => $existing->name()] : null;
         if ($existing instanceof EventTaskListLink) {
             if ($name !== null && $name !== $existing->name()) {
                 $existing->rememberName($name);
             }
         } else {
             $this->links->add(new EventTaskListLink($event, $taskListId, $name, $this->clock->now()));
+        }
+        $afterName = $name ?? $existing?->name();
+        if ($before === null || ($before['taskList'] ?? null) !== $afterName) {
+            $this->audit->record(
+                $member->getUserIdentifier(),
+                'event',
+                $event->id(),
+                'task_list_linked',
+                $before,
+                ['taskList' => $afterName],
+                $this->clock->now(),
+                $member->displayName(),
+            );
         }
         $this->entityManager->flush();
     }

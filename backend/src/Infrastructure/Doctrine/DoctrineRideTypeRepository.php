@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Infrastructure\Doctrine;
 
+use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideType;
 use App\Domain\Ride\RideTypeRepository;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -61,5 +62,21 @@ final class DoctrineRideTypeRepository extends ServiceEntityRepository implement
             ->getSingleScalarResult();
 
         return ((int) $value) + 1;
+    }
+
+    public function remove(RideType $rideType): void
+    {
+        $this->getEntityManager()->remove($rideType);
+    }
+
+    public function rideCount(RideType $rideType): int
+    {
+        return (int) $this->getEntityManager()->createQueryBuilder()
+            ->select('COUNT(ride.id)')
+            ->from(Ride::class, 'ride')
+            ->andWhere('ride.rideType = :rideType')
+            ->setParameter('rideType', $rideType)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 }

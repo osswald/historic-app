@@ -8,6 +8,7 @@ use App\Application\Event\EventCatalog;
 use App\Application\Tasks\EventTaskLists;
 use App\Application\Tasks\ShowTasks;
 use App\Application\Tasks\TasksClient;
+use App\Infrastructure\Audit\AuditRecorder;
 use App\Application\ZurichClock;
 use App\Domain\Event\EventRepository;
 use App\Domain\Event\EventTaskListLink;
@@ -67,11 +68,14 @@ final class EventTaskListLinkTest extends ApiTestCase
         $tasks = static::getContainer()->get(ShowTasks::class);
         self::assertInstanceOf(EventCatalog::class, $catalog);
         self::assertInstanceOf(ShowTasks::class, $tasks);
+        $audit = static::getContainer()->get(AuditRecorder::class);
+        self::assertInstanceOf(AuditRecorder::class, $audit);
         $reader = new EventTaskLists(
             $catalog,
             $links,
             $tasks,
             new TasksClient($http, 'test'),
+            $audit,
             $entityManager,
             $clock,
         );
@@ -124,7 +128,9 @@ final class EventTaskListLinkTest extends ApiTestCase
         $tasks = static::getContainer()->get(ShowTasks::class);
         self::assertInstanceOf(EventCatalog::class, $catalog);
         self::assertInstanceOf(ShowTasks::class, $tasks);
-        $reader = new EventTaskLists($catalog, $links, $tasks, new TasksClient($http, 'test'), $entityManager, $clock);
+        $audit = static::getContainer()->get(AuditRecorder::class);
+        self::assertInstanceOf(AuditRecorder::class, $audit);
+        $reader = new EventTaskLists($catalog, $links, $tasks, new TasksClient($http, 'test'), $audit, $entityManager, $clock);
         $items = $reader->resolve('https://tasks.test/functions/v1/api/v1', 'test-token', 'auth0|ada', $eventId);
         $byId = [];
         foreach ($items as $item) {

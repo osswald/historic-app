@@ -6,6 +6,7 @@ namespace App\Infrastructure\Doctrine;
 
 use App\Domain\Ride\Evu;
 use App\Domain\Ride\EvuRepository;
+use App\Domain\Ride\Ride;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -61,5 +62,21 @@ final class DoctrineEvuRepository extends ServiceEntityRepository implements Evu
             ->getSingleScalarResult();
 
         return ((int) $value) + 1;
+    }
+
+    public function remove(Evu $evu): void
+    {
+        $this->getEntityManager()->remove($evu);
+    }
+
+    public function rideCount(Evu $evu): int
+    {
+        return (int) $this->getEntityManager()->createQueryBuilder()
+            ->select('COUNT(ride.id)')
+            ->from(Ride::class, 'ride')
+            ->andWhere('ride.evu = :evu')
+            ->setParameter('evu', $evu)
+            ->getQuery()
+            ->getSingleScalarResult();
     }
 }

@@ -61,7 +61,7 @@ final class SaveEvent
             $event->replaceInvitations($input['invitations']['groups'], $input['invitations']['people'], $input['invitations']['excluded']);
         }
         $this->events->add($event);
-        $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'create', null, $event->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'create', null, $event->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $event;
@@ -94,7 +94,7 @@ final class SaveEvent
         if ($input['invitations'] !== null) {
             $event->replaceInvitations($input['invitations']['groups'], $input['invitations']['people'], $input['invitations']['excluded']);
         }
-        $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'update', $before, $event->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'event', $event->id(), 'update', $before, $event->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $event;

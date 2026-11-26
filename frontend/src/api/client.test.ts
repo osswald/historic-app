@@ -22,6 +22,19 @@ describe('api', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include')
   })
 
+  it('leaves the multipart boundary to the browser when uploading a file', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => Response.json({ linked: true }))
+    vi.stubGlobal('fetch', fetchMock)
+    const body = new FormData()
+    body.append('file', new Blob(['%PDF']), 'Plan.pdf')
+
+    await api('/api/v1/events/1/nextcloud/files', { method: 'POST', body })
+
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers)
+    expect(headers.get('Content-Type')).toBeNull()
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(body)
+  })
+
   it('sends JSON when the request has a body', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => Response.json({ id: '1' }, { status: 201 }))
     vi.stubGlobal('fetch', fetchMock)

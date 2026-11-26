@@ -21,4 +21,18 @@ final class DoctrineEventResponseRepository extends ServiceEntityRepository impl
     {
         return $this->findBy(['spondMemberId' => $spondMemberId]);
     }
+
+    public function idsForEvent(string $eventId): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->createQueryBuilder('response')
+            ->select('response.id')
+            ->innerJoin('response.eventDay', 'day')
+            ->andWhere('IDENTITY(day.event) = :eventId')
+            ->setParameter('eventId', $eventId)
+            ->getQuery()
+            ->getSingleColumnResult();
+
+        return array_values(array_map(static fn (mixed $id): string => (string) $id, $ids));
+    }
 }

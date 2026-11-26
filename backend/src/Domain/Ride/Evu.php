@@ -22,6 +22,9 @@ class Evu
     #[ORM\Column]
     private int $sortOrder;
 
+    #[ORM\Column]
+    private bool $active = true;
+
     public function __construct(string $name, int $sortOrder, ?string $id = null)
     {
         $this->id = $id ?? Uuid::v7()->toRfc4122();
@@ -42,5 +45,15 @@ class Evu
     public function sortOrder(): int
     {
         return $this->sortOrder;
+    }
+
+    public function isActive(): bool
+    {
+        return $this->active;
+    }
+
+    public function setActive(bool $active): void
+    {
+        $this->active = $active;
     }
 }

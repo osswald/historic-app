@@ -83,6 +83,7 @@ final class RecordPollAnswer
             $before,
             $after,
             $now,
+            $actor->displayName(),
         );
         $this->entityManager->flush();
     }

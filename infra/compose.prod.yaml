@@ -53,6 +53,9 @@ services:
       HELFER_API_BASE: ${HELFER_API_BASE:-}
       HELFER_API_KEY: ${HELFER_API_KEY:-}
       HELFER_API_TOKEN: ${HELFER_API_TOKEN:-}
+      NEXTCLOUD_BASE: ${NEXTCLOUD_BASE:-}
+      NEXTCLOUD_USER: ${NEXTCLOUD_USER:-}
+      NEXTCLOUD_APP_PASSWORD: ${NEXTCLOUD_APP_PASSWORD:-}
     volumes:
       - historic_caddy_data:/data
       - historic_caddy_config:/config

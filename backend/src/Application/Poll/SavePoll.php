@@ -50,7 +50,7 @@ final class SavePoll
         );
         $this->syncOptions($poll, $input['options']);
         $this->polls->add($poll);
-        $this->audit->record($actor->getUserIdentifier(), 'poll', $poll->id(), 'create', null, $poll->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'poll', $poll->id(), 'create', null, $poll->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $poll;
@@ -75,7 +75,7 @@ final class SavePoll
             $now,
         );
         $this->syncOptions($poll, $input['options']);
-        $this->audit->record($actor->getUserIdentifier(), 'poll', $poll->id(), 'update', $before, $poll->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'poll', $poll->id(), 'update', $before, $poll->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $poll;

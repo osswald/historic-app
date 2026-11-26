@@ -24,6 +24,7 @@ final class AuditRecorder
         ?array $before,
         ?array $after,
         \DateTimeImmutable $at,
+        ?string $actorName = null,
     ): void {
         $this->entities->persist(new AuditEntry(
             $actorSub,
@@ -33,6 +34,7 @@ final class AuditRecorder
             $before,
             $after,
             $at,
+            $actorName,
         ));
     }
 }

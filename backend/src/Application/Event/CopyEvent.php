@@ -65,7 +65,7 @@ final class CopyEvent
         // V-11: Gruppen sind eine Einstellung. Namentliche Ein- und Ausschlüsse sind persönliche Zuordnungen und werden nicht mitkopiert.
         $copy->replaceInvitations($source->invitedGroups(), [], []);
         $this->events->add($copy);
-        $this->audit->record($actor->getUserIdentifier(), 'event', $copy->id(), 'create', null, $copy->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'event', $copy->id(), 'create', null, $copy->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $copy;

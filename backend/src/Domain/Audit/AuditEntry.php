@@ -39,6 +39,9 @@ class AuditEntry
     #[ORM\Column(type: Types::DATETIMETZ_IMMUTABLE)]
     private \DateTimeImmutable $occurredAt;
 
+    #[ORM\Column(length: 200, nullable: true)]
+    private ?string $actorName;
+
     /** @param array<string, mixed>|null $beforeData
      *  @param array<string, mixed>|null $afterData
      */
@@ -50,6 +53,7 @@ class AuditEntry
         ?array $beforeData,
         ?array $afterData,
         \DateTimeImmutable $occurredAt,
+        ?string $actorName = null,
     ) {
         $this->id = Uuid::v7()->toRfc4122();
         $this->actorSub = $actorSub;
@@ -59,6 +63,8 @@ class AuditEntry
         $this->beforeData = $beforeData;
         $this->afterData = $afterData;
         $this->occurredAt = $occurredAt;
+        $name = $actorName !== null ? trim($actorName) : '';
+        $this->actorName = $name === '' ? null : $name;
     }
 
     public function id(): string
@@ -69,6 +75,11 @@ class AuditEntry
     public function actorSub(): string
     {
         return $this->actorSub;
+    }
+
+    public function actorName(): ?string
+    {
+        return $this->actorName;
     }
 
     public function entityType(): string

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { Answer, Daypart, PollDetail, PollOption } from '../api/types'
-import { AuditHistory } from '../components/AuditHistory'
+import { AuditHistoryButton } from '../components/AuditHistory'
 import { useNarrow } from '../forms/narrow'
 import { useMember, useToast } from '../shell/context'
 
@@ -113,7 +113,12 @@ export function PollDetailPage() {
           <h1>{poll.title}</h1>
           <div className="hello">{poll.description ?? 'Markiere alle Zeitfenster, an denen du verfügbar bist.'}</div>
         </div>
-        {member?.canOrganize ? <Link className="btn light" to={`/umfragen/${poll.id}/bearbeiten`}>Bearbeiten</Link> : null}
+        {member?.canOrganize ? (
+          <div className="detail-actions">
+            <AuditHistoryButton entityId={poll.id} entityType="poll" />
+            <Link className="btn light" to={`/umfragen/${poll.id}/bearbeiten`}>Bearbeiten</Link>
+          </div>
+        ) : null}
       </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="panel">
@@ -214,7 +219,6 @@ export function PollDetailPage() {
           </div>
         </div>
       ) : null}
-      {member?.canOrganize ? <div style={{ marginTop: 16 }}><AuditHistory entityId={poll.id} entityType="poll" /></div> : null}
     </section>
   )
 }

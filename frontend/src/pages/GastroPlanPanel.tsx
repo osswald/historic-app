@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, GastroPlan, GastroView } from '../api/types'
-import { AuditHistory } from '../components/AuditHistory'
+import { AuditHistoryButton } from '../components/AuditHistory'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { useRegisterUnsaved } from '../forms/unsaved'
@@ -144,7 +144,10 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
     <div className="stack">
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="panel">
-        <div className="panel-head"><h2>Gastronomieplanung</h2></div>
+        <div className="panel-head">
+          <h2>Gastronomieplanung</h2>
+          {canEdit && plan ? <AuditHistoryButton entityId={plan.id} entityType="gastro_plan" /> : null}
+        </div>
         <div className="panel-inner" style={{ paddingTop: 0 }}>
           <div className="note">Eine frei geschätzte Gästezahl, Gerichte, Portionen, eine Notiz und die Verantwortlichen. Getränke und Preise werden hier nicht geführt.</div>
         </div>
@@ -223,7 +226,6 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
           <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />
         </form>
       ) : null}
-      {canEdit && plan ? <AuditHistory entityId={plan.id} entityType="gastro_plan" /> : null}
     </div>
   )
 }

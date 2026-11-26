@@ -10,8 +10,9 @@ describe('ride times', () => {
 
   it('keeps a same-day clock bare and marks the neighbouring days', () => {
     expect(clockLabel('09:10', 0)).toBe('09:10')
-    expect(clockLabel('06:00', 1)).toBe('06:00 (Folgetag)')
-    expect(clockLabel('18:00', -1)).toBe('18:00 (Vortag)')
+    expect(clockLabel('09:10', null)).toBe('09:10')
+    expect(clockLabel('01:23', 1)).toBe('01:23+')
+    expect(clockLabel('23:55', -1)).toBe('23:55-')
   })
 
   it('leaves an unknown time open and without a day offset', () => {

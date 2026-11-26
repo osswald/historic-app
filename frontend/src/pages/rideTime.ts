@@ -13,7 +13,8 @@ export function offsetLabel(offset: DayOffset): string {
 
 export function clockLabel(time: string | null, offset: DayOffset | null): string {
   if (!time) return 'offen'
-  if (offset === -1 || offset === 1) return `${time} (${offsetLabel(offset)})`
+  if (offset === -1) return `${time}-`
+  if (offset === 1) return `${time}+`
   return time
 }
 

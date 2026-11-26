@@ -64,7 +64,7 @@ final class RecordMeterReading
 
         $now = $this->clock->now();
         $entry = $vehicle->recordMeter($kind, $reading, $readOn, $actor->getUserIdentifier(), $actor->displayName(), $now);
-        $this->audit->record($actor->getUserIdentifier(), 'meter_reading', $entry->id(), 'create', null, $entry->toAudit(), $now);
+        $this->audit->record($actor->getUserIdentifier(), 'meter_reading', $entry->id(), 'create', null, $entry->toAudit(), $now, $actor->displayName());
         $this->entityManager->flush();
 
         return $vehicle;

@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
-import { AuditHistory } from '../components/AuditHistory'
+import { AuditHistoryButton } from '../components/AuditHistory'
 import { useMember, useToast } from '../shell/context'
 import { EventHelferPanel } from './EventHelferPanel'
+import { EventNextcloudPanel } from './EventNextcloudPanel'
 import { EventTasksPanel } from './EventTasksPanel'
-import { attendanceGroupStartsOpen, groupAttendance } from './attendanceGroups'
+import { attendanceGroupStartsOpen, groupAttendance, type AttendanceGroupId } from './attendanceGroups'
 import { GastroPlanPanel } from './GastroPlanPanel'
 import { RidePlanPanel } from './RidePlanPanel'
 
@@ -102,8 +103,9 @@ export function EventDetailPage() {
     <section>
       <div className="toolbar" style={{ marginBottom: 14 }}>
         <Link className="btn small light" to="/veranstaltungen">‹ Veranstaltungen</Link>
-        <div style={{ display: 'flex', gap: 9, alignItems: 'center' }}>
+        <div className="detail-actions">
           <span className={event.status === 'published' ? 'pill green' : event.status === 'cancelled' ? 'pill red' : 'pill gray'}>{event.statusLabel}</span>
+          {member?.canOrganize ? <AuditHistoryButton entityId={event.id} entityType="event" /> : null}
           {member?.canOrganize ? <button className="btn small light secondary-action" disabled={copying} type="button" onClick={() => { void copyEvent() }}>Kopieren</button> : null}
           {member?.canOrganize ? <Link className="btn small" to={`/veranstaltungen/${event.id}/bearbeiten`}>✎ Bearbeiten</Link> : null}
         </div>
@@ -180,13 +182,7 @@ export function EventDetailPage() {
                 {event.invitations.excluded.length > 0 ? <p className="muted">Ausgeschlossen: {event.invitations.excluded.map((person) => person.name).join(', ')}</p> : null}
               </div>
             </div>
-            {member?.canOrganize ? <AuditHistory entityId={event.id} entityType="event" /> : null}
-            <div className="panel">
-              <div className="panel-head"><h2>Verknüpfte Bereiche</h2></div>
-              <div className="panel-inner" style={{ paddingTop: 0 }}>
-                <p className="muted" style={{ marginTop: 0 }}>Aufgabenlisten hängen am Reiter Aufgaben, Schichten am Reiter Helfer. Reservationen und Nextcloud folgen.</p>
-              </div>
-            </div>
+            <EventNextcloudPanel key={event.id} eventId={event.id} />
           </div>
         </div>
       ) : null}
@@ -230,6 +226,25 @@ function DayAnswer({
   )
 }
 
+function AttendanceMark({ id }: { id: AttendanceGroupId }) {
+  return (
+    <svg aria-hidden="true" className={`attendance-mark attendance-mark-${id}`} viewBox="0 0 16 16">
+      {id === 'yes' ? (
+        <path d="M3.4 8.2 6.5 11.3 12.6 4.7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
+      ) : null}
+      {id === 'no' ? (
+        <path d="M4.2 4.2 11.8 11.8M11.8 4.2 4.2 11.8" fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth="1.75" />
+      ) : null}
+      {id === 'pending' ? (
+        <>
+          <path d="M6.05 6.25a2.55 2.35 0 0 1 5.05.05c0 1.7-1.55 2.15-2.2 2.9-.4.45-.5.8-.5 1.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.75" />
+          <circle cx="8.4" cy="12.55" r="0.95" fill="currentColor" />
+        </>
+      ) : null}
+    </svg>
+  )
+}
+
 function AttendanceGroups({
   dayId,
   responses,
@@ -258,6 +273,7 @@ function AttendanceGroups({
               type="button"
               onClick={() => setOpen((current) => ({ ...current, [group.id]: !expanded }))}
             >
+              <AttendanceMark id={group.id} />
               <span className="attendance-label">{group.label}</span>
               <span className="attendance-count">{group.people.length}</span>
               <span aria-hidden="true" className="attendance-chevron">{expanded ? '▾' : '▸'}</span>

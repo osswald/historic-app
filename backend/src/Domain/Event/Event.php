@@ -478,6 +478,7 @@ class Event
             ], $this->days()),
             'vehicles' => array_map(static fn (EventVehicle $link): array => [
                 'vehicleId' => $link->vehicle()->id(),
+                'name' => $link->vehicle()->label(),
                 'rentalStatus' => $link->rentalStatus(),
             ], $this->assignedVehicles()),
         ];

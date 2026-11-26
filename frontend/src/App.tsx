@@ -16,6 +16,7 @@ import { LoginPage } from './pages/LoginPage'
 import { PollDetailPage } from './pages/PollDetailPage'
 import { PollEditorPage } from './pages/PollEditorPage'
 import { PollsPage } from './pages/PollsPage'
+import { RideCatalogSettingsPage } from './pages/RideCatalogSettingsPage'
 import { SpondPage } from './pages/SpondPage'
 import { Shell } from './shell/Shell'
 import { MemberContext, ToastContext } from './shell/context'
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: '/gastronomie', element: <GastroPage /> },
       { path: '/aufgaben', element: <AufgabenPage /> },
       { path: '/spond', element: <SpondPage /> },
+      { path: '/einstellungen', element: <RideCatalogSettingsPage /> },
     ],
   },
 ])

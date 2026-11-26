@@ -14,7 +14,7 @@ export class ApiError extends Error {
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = sessionToken()
   const headers = new Headers(init.headers)
-  if (init.body) {
+  if (init.body && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json')
   }
   if (token) {

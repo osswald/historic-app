@@ -302,4 +302,9 @@ final class ListSpondResponses implements EventResponseRepository
             static fn (EventResponse $row): bool => $row->spondMemberId() === $spondMemberId,
         ));
     }
+
+    public function idsForEvent(string $eventId): array
+    {
+        return [];
+    }
 }

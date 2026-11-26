@@ -46,6 +46,8 @@ export type OwnVehicleOption = {
 export type CatalogValue = {
   id: string
   name: string
+  active?: boolean
+  used?: boolean
 }
 
 export type StatusOption = {
@@ -147,6 +149,12 @@ export type GastroOverviewRow = {
   dishes: string[]
 }
 
+export type AuditChange = {
+  label: string
+  before: string | null
+  after: string | null
+}
+
 export type AuditEntry = {
   id: string
   occurredAt: string
@@ -154,6 +162,7 @@ export type AuditEntry = {
   action: string
   actionLabel: string
   summary: string
+  changes?: AuditChange[]
 }
 
 export type GastroView = {
@@ -422,6 +431,36 @@ export type EventHelfer = {
   planTitle: string | null
   planUrl: string | null
   shifts: HelferShift[]
+}
+
+export type NextcloudDocument = {
+  name: string
+  fileId: string
+  url: string
+}
+
+export type NextcloudArea = NextcloudDocument & {
+  key: string
+}
+
+export type EventNextcloud = {
+  configured: boolean
+  missing: string[]
+  notice: string | null
+  canEdit: boolean
+  linked: boolean
+  reachable: boolean
+  name: string | null
+  fileId: string | null
+  url: string | null
+  proposedName: string | null
+  documents: NextcloudDocument[]
+  areas: NextcloudArea[]
+}
+
+export type NextcloudFolderChoice = {
+  fileId: string
+  name: string
 }
 
 export type DashboardData = {

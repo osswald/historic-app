@@ -27,6 +27,8 @@ services:
     App\Domain\Event\EventRepository: '@App\Infrastructure\Doctrine\DoctrineEventRepository'
     App\Domain\Event\EventTaskListRepository: '@App\Infrastructure\Doctrine\DoctrineEventTaskListRepository'
     App\Domain\Event\EventHelferLinkRepository: '@App\Infrastructure\Doctrine\DoctrineEventHelferLinkRepository'
+    App\Domain\Event\EventNextcloudFolderRepository: '@App\Infrastructure\Doctrine\DoctrineEventNextcloudFolderRepository'
+    App\Domain\Nextcloud\ArchiveEventFolder: ~
     App\Domain\Event\EventDayRepository: '@App\Infrastructure\Doctrine\DoctrineEventDayRepository'
     App\Domain\Event\EventResponseRepository: '@App\Infrastructure\Doctrine\DoctrineEventResponseRepository'
     App\Domain\Poll\PollRepository: '@App\Infrastructure\Doctrine\DoctrinePollRepository'

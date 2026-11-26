@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { api, ApiError } from '../api/client'
 import type { FleetList, FleetVehicle, VehicleStatus } from '../api/types'
-import { AuditHistory } from '../components/AuditHistory'
+import { AuditHistoryButton } from '../components/AuditHistory'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { confirmLeave, useRegisterUnsaved } from '../forms/unsaved'
@@ -312,7 +312,10 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
 
   return (
     <form className="vehicle-form editor-form" onSubmit={(submit) => { void save(submit) }}>
-      <h3>{title}</h3>
+      <div className="vehicle-form-head">
+        <h3>{title}</h3>
+        {vehicleId ? <AuditHistoryButton entityId={vehicleId} entityType="vehicle" /> : null}
+      </div>
       {error ? <div className="banner-error">{error}</div> : null}
       <div className="formfield">
         <label>Name</label>
@@ -375,7 +378,6 @@ function VehicleForm({ title, initial, vehicleId, onSaved, onCancel }: { title: 
         {draft.status !== 'ready' ? <p className="muted">Bei Eingeschränkt und Gesperrt ist ein Grund erforderlich. Die Zuteilung bleibt erlaubt.</p> : null}
         {fieldErrors.technicalNote ? <div className="field-error">{fieldErrors.technicalNote}</div> : null}
       </div>
-      {vehicleId ? <AuditHistory entityId={vehicleId} entityType="vehicle" /> : null}
       <div className="vehicle-actions desktop-save">
         <button className="btn primary small" disabled={busy} type="submit">Speichern</button>
         {onCancel ? <button className="btn small light" type="button" onClick={cancel}>Abbrechen</button> : null}
