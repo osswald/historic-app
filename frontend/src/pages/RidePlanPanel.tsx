@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { api, ApiError } from '../api/client'
-import type { ClubEvent, DayOffset, EventVehicle, FleetOption, Ride, RidePlan, StationChoice, StationHit } from '../api/types'
+import type { CatalogValue, ClubEvent, DayOffset, EventVehicle, FleetOption, Ride, RidePlan, RidePlanning, StationChoice, StationHit, StatusOption } from '../api/types'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { VehiclePick } from '../forms/VehiclePick'
@@ -30,8 +30,20 @@ type RideDraft = {
   trainNumber: string
   origin: StationChoice | null
   destination: StationChoice | null
+  vias: StationChoice[]
+  rideTypeId: string
+  evuId: string
   vehicles: VehicleDraft[]
   internalNote: string
+}
+
+type PlanningDraft = {
+  driverReported: boolean | null
+  pathStatus: string
+  hireStatus: string
+  shunting: string
+  breaks: string
+  furtherInfo: string
 }
 
 const OFFSETS: DayOffset[] = [-1, 0, 1]
@@ -41,6 +53,11 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
   const [plan, setPlan] = useState<RidePlan | null>(null)
   const [drafts, setDrafts] = useState<RideDraft[]>([])
   const [listed, setListed] = useState<ListedVehicle[]>([])
+  const [planning, setPlanning] = useState<PlanningDraft>(emptyPlanning())
+  const [typeName, setTypeName] = useState('')
+  const [evuName, setEvuName] = useState('')
+  const [catalogError, setCatalogError] = useState<{ type?: string; evu?: string }>({})
+  const [addingCatalog, setAddingCatalog] = useState<'type' | 'evu' | null>(null)
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
@@ -52,18 +69,27 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
 
   useEffect(() => {
     setComposing(false)
+    setReady(false)
+    setBaseline(null)
+    let cancelled = false
     api<RidePlan>(`/api/v1/events/${event.id}/rides`)
       .then((body) => {
+        if (cancelled) return
         setPlan(body)
         setDrafts(body.rides.map(toDraft))
         setListed(body.eventVehicles.map(toListed))
+        setPlanning(toPlanning(body.planning))
         setWarnings(body.warnings)
         setReady(true)
       })
-      .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Fahrten konnten nicht geladen werden.'))
+      .catch((reason: unknown) => {
+        if (cancelled) return
+        setError(reason instanceof ApiError ? reason.message : 'Die Fahrten konnten nicht geladen werden.')
+      })
+    return () => { cancelled = true }
   }, [event.id])
 
-  const snapshot = JSON.stringify({ drafts, listed })
+  const snapshot = JSON.stringify({ drafts, listed, planning })
   useEffect(() => {
     if (!ready) return
     setBaseline((current) => current ?? snapshot)
@@ -116,19 +142,32 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
             trainNumber: ride.trainNumber,
             origin: ride.origin,
             destination: ride.destination,
+            vias: ride.vias,
+            rideTypeId: ride.rideTypeId === '' ? null : ride.rideTypeId,
+            evuId: ride.evuId === '' ? null : ride.evuId,
             vehicles: ride.vehicles
               .filter((vehicle) => vehicle.vehicleId !== '')
               .map((vehicle) => ({ vehicleId: vehicle.vehicleId })),
             internalNote: ride.internalNote,
           })),
+          planning: {
+            driverReported: planning.driverReported,
+            pathStatus: planning.pathStatus === '' ? null : planning.pathStatus,
+            hireStatus: planning.hireStatus === '' ? null : planning.hireStatus,
+            shunting: planning.shunting,
+            breaks: planning.breaks,
+            furtherInfo: planning.furtherInfo,
+          },
         }),
       })
       const nextDrafts = saved.rides.map(toDraft)
       const nextListed = saved.eventVehicles.map(toListed)
+      const nextPlanning = toPlanning(saved.planning)
       setPlan(saved)
       setDrafts(nextDrafts)
       setListed(nextListed)
-      setBaseline(JSON.stringify({ drafts: nextDrafts, listed: nextListed }))
+      setPlanning(nextPlanning)
+      setBaseline(JSON.stringify({ drafts: nextDrafts, listed: nextListed, planning: nextPlanning }))
       setWarnings(saved.warnings)
       toast(saved.warnings.length > 0 ? 'Gespeichert. Bitte die Hinweise zur Doppelbelegung prüfen.' : 'Fahrt gespeichert.')
     } catch (reason) {
@@ -143,6 +182,37 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
       }
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function addCatalog(kind: 'type' | 'evu') {
+    const name = (kind === 'type' ? typeName : evuName).trim()
+    if (name === '') {
+      setCatalogError((current) => ({ ...current, [kind]: 'Bitte einen Namen angeben.' }))
+      return
+    }
+    setAddingCatalog(kind)
+    setCatalogError((current) => ({ ...current, [kind]: undefined }))
+    try {
+      const created = await api<CatalogValue>(kind === 'type' ? '/api/v1/ride-types' : '/api/v1/evus', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+      })
+      setPlan((current) => {
+        if (!current) return current
+        if (kind === 'type') return { ...current, rideTypes: [...current.rideTypes, created] }
+        return { ...current, evus: [...current.evus, created] }
+      })
+      if (kind === 'type') setTypeName('')
+      else setEvuName('')
+      toast(kind === 'type' ? 'Art der Fahrt ergänzt.' : 'EVU ergänzt.')
+    } catch (reason) {
+      const message = reason instanceof ApiError
+        ? (reason.fields?.name ?? reason.message)
+        : 'Der Wert konnte nicht ergänzt werden.'
+      setCatalogError((current) => ({ ...current, [kind]: message }))
+    } finally {
+      setAddingCatalog(null)
     }
   }
 
@@ -164,7 +234,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
 
   if (rides.length === 0 && !composing) {
     return (
-      <div className="stack">
+      <div className="stack ride-plan">
         {error ? <div className="banner-error">{error}</div> : null}
         {canEdit ? (
           <button className="btn light empty-add" type="button" onClick={addRide}>Fahrt hinzufügen</button>
@@ -175,10 +245,10 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
     )
   }
 
-  return (
-    <div className="stack">
-      {error ? <div className="banner-error">{error}</div> : null}
-      {warnings.length > 0 ? (
+    return (
+      <div className="stack ride-plan">
+        {error ? <div className="banner-error">{error}</div> : null}
+        {warnings.length > 0 ? (
         <div className="banner-warn" role="status">
           {warnings.map((warning) => <p key={warning}>{warning}</p>)}
         </div>
@@ -186,7 +256,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
       <div className="panel">
         <div className="panel-head"><h2>Abfahrt und Ankunft</h2></div>
         <div className="panel-inner" style={{ paddingTop: 0 }}>
-          <div className="note">Erfasst werden Zugnummer, Start- und Zielbahnhof und mindestens ein Fahrzeug. Abfahrt und Ankunft können offen bleiben. Der Tagversatz gilt nur, wenn die zugehörige Zeit gesetzt ist. Zwischenzeiten werden nicht geführt.</div>
+          <div className="note">Erfasst werden Zugnummer, Start- und Zielbahnhof und mindestens ein Fahrzeug. Via-Bahnhöfe sind freiwillig und behalten die eingegebene Reihenfolge. Abfahrt und Ankunft können offen bleiben. Der Tagversatz gilt nur, wenn die zugehörige Zeit gesetzt ist. Zwischenzeiten werden nicht geführt.</div>
         </div>
         {rides.length === 0 ? <p className="empty">Noch keine Fahrt erfasst.</p> : (
           <>
@@ -196,9 +266,13 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
               return (
                 <div className="route-row route-ride" key={ride.id}>
                   <span data-label="Tag">{day ? dayLabel(day.date) : 'Tag'}</span>
-                  <span data-label="Zug"><strong>{ride.trainNumber}</strong></span>
+                  <span data-label="Zug">
+                    <strong>{ride.trainNumber}</strong>
+                    {ride.rideType ? <small className="ride-meta">{ride.rideType.name}</small> : null}
+                    {ride.evu ? <small className="ride-meta">{ride.evu.name}</small> : null}
+                  </span>
                   <span data-label="Strecke">
-                    <strong title={`${ride.origin.name} → ${ride.destination.name}`}>{stationLabel(ride.origin)} → {stationLabel(ride.destination)}</strong>
+                    <strong title={routeTitle(ride)}>{routeLabel(ride)}</strong>
                   </span>
                   <span data-label="Fahrzeuge">
                     {ride.vehicles.map((vehicle) => (
@@ -216,6 +290,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
           <div className="ride-note note" key={`${ride.id}-note`}>{ride.internalNote}</div>
         )) : null}
       </div>
+      {!canEdit && plan ? <PlanningRead planning={plan.planning} /> : null}
       {canEdit ? (
         <form className="editor-form" onSubmit={(submit) => { void save(submit) }}>
           <div className="panel">
@@ -280,6 +355,25 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                       onChange={(destination) => updateDraft(ride.key, { destination })}
                     />
                   </div>
+                  <ViaField
+                    error={viaError(fieldErrors, index)}
+                    stations={ride.vias}
+                    onChange={(vias) => updateDraft(ride.key, { vias })}
+                  />
+                  <div className="formrow cols2">
+                    <Field error={fieldErrors[`rides.${index}.rideTypeId`]} label="Art der Fahrt">
+                      <select className="input" value={ride.rideTypeId} onChange={(input) => updateDraft(ride.key, { rideTypeId: input.target.value })}>
+                        <option value="">—</option>
+                        {(plan?.rideTypes ?? []).map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
+                      </select>
+                    </Field>
+                    <Field error={fieldErrors[`rides.${index}.evuId`]} label="EVU">
+                      <select className="input" value={ride.evuId} onChange={(input) => updateDraft(ride.key, { evuId: input.target.value })}>
+                        <option value="">—</option>
+                        {(plan?.evus ?? []).map((evu) => <option key={evu.id} value={evu.id}>{evu.name}</option>)}
+                      </select>
+                    </Field>
+                  </div>
                   <div className="formrow cols2">
                     <Field error={fieldErrors[`rides.${index}.departureTime`]} label="Abfahrt">
                       <input className="input" type="time" value={ride.departureTime} onChange={(input) => updateDraft(ride.key, { departureTime: input.target.value, departureOffset: input.target.value === '' ? null : (ride.departureOffset ?? 0) })} />
@@ -326,6 +420,71 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                 </div>
               ))}
               <button className="btn light" type="button" onClick={addRide}>Fahrt hinzufügen</button>
+              {plan?.canManageCatalogs ? (
+                <div className="catalog-block">
+                  <h3>Listen ergänzen</h3>
+                  <CatalogAdd
+                    busy={addingCatalog === 'type'}
+                    error={catalogError.type}
+                    label="Art der Fahrt"
+                    value={typeName}
+                    onChange={setTypeName}
+                    onAdd={() => { void addCatalog('type') }}
+                  />
+                  <CatalogAdd
+                    busy={addingCatalog === 'evu'}
+                    error={catalogError.evu}
+                    label="EVU"
+                    value={evuName}
+                    onChange={setEvuName}
+                    onAdd={() => { void addCatalog('evu') }}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </div>
+          <div className="panel">
+            <div className="panel-head"><h2>Allgemeine Fahrtenplanung</h2></div>
+            <div className="panel-inner">
+              <Field error={fieldErrors['planning.driverReported']} label="Lokführer gemeldet">
+                <select
+                  className="input"
+                  value={planning.driverReported === null ? '' : planning.driverReported ? 'yes' : 'no'}
+                  onChange={(input) => setPlanning((current) => ({
+                    ...current,
+                    driverReported: input.target.value === 'yes' ? true : input.target.value === 'no' ? false : null,
+                  }))}
+                >
+                  <option value="">—</option>
+                  <option value="yes">Ja</option>
+                  <option value="no">Nein</option>
+                </select>
+              </Field>
+              <div className="formrow cols2">
+                <Field error={fieldErrors['planning.pathStatus']} label="Trassenplanung">
+                  <StatusSelect
+                    options={plan?.pathStatuses ?? []}
+                    value={planning.pathStatus}
+                    onChange={(pathStatus) => setPlanning((current) => ({ ...current, pathStatus }))}
+                  />
+                </Field>
+                <Field error={fieldErrors['planning.hireStatus']} label="Fahrzeugmiete">
+                  <StatusSelect
+                    options={plan?.hireStatuses ?? []}
+                    value={planning.hireStatus}
+                    onChange={(hireStatus) => setPlanning((current) => ({ ...current, hireStatus }))}
+                  />
+                </Field>
+              </div>
+              <Field error={fieldErrors['planning.shunting']} label="Rangierplanung">
+                <textarea className="input" value={planning.shunting} onChange={(input) => setPlanning((current) => ({ ...current, shunting: input.target.value }))} />
+              </Field>
+              <Field error={fieldErrors['planning.breaks']} label="Pausen">
+                <textarea className="input" value={planning.breaks} onChange={(input) => setPlanning((current) => ({ ...current, breaks: input.target.value }))} />
+              </Field>
+              <Field error={fieldErrors['planning.furtherInfo']} label="Weitere Infos">
+                <textarea className="input" value={planning.furtherInfo} onChange={(input) => setPlanning((current) => ({ ...current, furtherInfo: input.target.value }))} />
+              </Field>
             </div>
           </div>
           <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />
@@ -433,8 +592,179 @@ function Field({ label, error, children }: { label: string; error?: string; chil
   )
 }
 
+function ViaField({ stations, onChange, error }: { stations: StationChoice[]; onChange: (stations: StationChoice[]) => void; error?: string }) {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<StationHit[]>([])
+  const [searchError, setSearchError] = useState<string | null>(null)
+  const [searching, setSearching] = useState(false)
+  const [settled, setSettled] = useState(false)
+
+  useEffect(() => {
+    const term = query.trim()
+    if (term.length < 1) {
+      setResults([])
+      setSearchError(null)
+      setSearching(false)
+      setSettled(false)
+      return
+    }
+    let cancelled = false
+    setSearching(true)
+    setSettled(false)
+    const timer = window.setTimeout(() => {
+      api<{ stations: StationHit[] }>(`/api/v1/stations?q=${encodeURIComponent(term)}`)
+        .then((body) => {
+          if (cancelled) return
+          setResults(body.stations)
+          setSearchError(null)
+        })
+        .catch((reason: unknown) => {
+          if (cancelled) return
+          setResults([])
+          setSearchError(reason instanceof ApiError ? reason.message : 'Die Bahnhofsuche ist gerade nicht erreichbar.')
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setSearching(false)
+            setSettled(true)
+          }
+        })
+    }, 300)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [query])
+
+  return (
+    <Field error={error ?? searchError ?? undefined} label="Via-Bahnhöfe">
+      {stations.length === 0 ? <p className="muted">Keine Via-Bahnhöfe. Zwischenzeiten werden nicht geführt.</p> : null}
+      {stations.map((station, index) => (
+        <div className="via-line" key={`${station.didokCode}-${index}`}>
+          <span className="via-name" title={station.name}>{stationLabel(station)}</span>
+          <button className="btn small light" disabled={index === 0} type="button" onClick={() => onChange(moveVia(stations, index, -1))}>Hoch</button>
+          <button className="btn small light" disabled={index === stations.length - 1} type="button" onClick={() => onChange(moveVia(stations, index, 1))}>Runter</button>
+          <button className="btn small light" type="button" onClick={() => onChange(stations.filter((_, item) => item !== index))}>Entfernen</button>
+        </div>
+      ))}
+      <input aria-label="Via-Bahnhof suchen" className="input" placeholder="Name oder Kürzel" value={query} onChange={(input) => setQuery(input.target.value)} />
+      {searching ? <p className="muted">Suche …</p> : null}
+      {!searching && settled && query.trim().length >= 1 && results.length === 0 && !searchError ? <p className="muted">Keine Zugshaltestelle gefunden.</p> : null}
+      {results.length > 0 ? (
+        <ul className="station-results">
+          {results.map((station) => (
+            <li key={station.id ?? station.didokCode}>
+              <button title={station.name} type="button" onClick={() => {
+                onChange([...stations, { didokCode: station.didokCode, name: station.name, abbreviation: station.abbreviation }])
+                setQuery('')
+                setResults([])
+              }}>
+                <span>{station.abbreviation?.trim() ? station.abbreviation : station.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Field>
+  )
+}
+
+function StatusSelect({ options, value, onChange }: { options: StatusOption[]; value: string; onChange: (value: string) => void }) {
+  return (
+    <select className="input" value={value} onChange={(input) => onChange(input.target.value)}>
+      <option value="">—</option>
+      {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+    </select>
+  )
+}
+
+function CatalogAdd({ label, value, error, busy, onChange, onAdd }: { label: string; value: string; error?: string; busy: boolean; onChange: (value: string) => void; onAdd: () => void }) {
+  return (
+    <div className="formfield">
+      <label>{label} ergänzen</label>
+      <div className="catalog-add">
+        <input aria-label={`${label} ergänzen`} className="input" value={value} onChange={(input) => onChange(input.target.value)} />
+        <button className="btn light" disabled={busy} type="button" onClick={onAdd}>Hinzufügen</button>
+      </div>
+      {error ? <div className="field-error">{error}</div> : null}
+    </div>
+  )
+}
+
+function PlanningRead({ planning }: { planning: RidePlanning }) {
+  const driver = planning.driverReported === true ? 'Ja' : planning.driverReported === false ? 'Nein' : '—'
+  return (
+    <div className="panel">
+      <div className="panel-head"><h2>Allgemeine Fahrtenplanung</h2></div>
+      <div className="panel-inner">
+        <dl className="kv planning-read">
+          <dt>Lokführer gemeldet</dt>
+          <dd>{driver}</dd>
+          <dt>Trassenplanung</dt>
+          <dd>{planning.pathStatusLabel ?? '—'}</dd>
+          <dt>Fahrzeugmiete</dt>
+          <dd>{planning.hireStatusLabel ?? '—'}</dd>
+          <dt>Rangierplanung</dt>
+          <dd>{planning.shunting?.trim() ? planning.shunting : '—'}</dd>
+          <dt>Pausen</dt>
+          <dd>{planning.breaks?.trim() ? planning.breaks : '—'}</dd>
+          <dt>Weitere Infos</dt>
+          <dd>{planning.furtherInfo?.trim() ? planning.furtherInfo : '—'}</dd>
+        </dl>
+      </div>
+    </div>
+  )
+}
+
 function stationLabel(station: StationChoice): string {
   return station.abbreviation?.trim() ? station.abbreviation : station.name
+}
+
+function routeLabel(ride: Ride): string {
+  return [ride.origin, ...(ride.vias ?? []), ride.destination].map(stationLabel).join(' → ')
+}
+
+function routeTitle(ride: Ride): string {
+  return [ride.origin, ...(ride.vias ?? []), ride.destination].map((station) => station.name).join(' → ')
+}
+
+function moveVia(stations: StationChoice[], index: number, direction: -1 | 1): StationChoice[] {
+  const target = index + direction
+  if (target < 0 || target >= stations.length) return stations
+  const next = stations.slice()
+  const [item] = next.splice(index, 1)
+  if (!item) return stations
+  next.splice(target, 0, item)
+  return next
+}
+
+function viaError(fields: Record<string, string>, index: number): string | undefined {
+  const prefix = `rides.${index}.vias`
+  if (fields[prefix]) return fields[prefix]
+  const key = Object.keys(fields).find((item) => item.startsWith(`${prefix}.`))
+  return key ? fields[key] : undefined
+}
+
+function emptyPlanning(): PlanningDraft {
+  return {
+    driverReported: null,
+    pathStatus: '',
+    hireStatus: '',
+    shunting: '',
+    breaks: '',
+    furtherInfo: '',
+  }
+}
+
+function toPlanning(planning: RidePlanning | undefined): PlanningDraft {
+  return {
+    driverReported: planning?.driverReported ?? null,
+    pathStatus: planning?.pathStatus ?? '',
+    hireStatus: planning?.hireStatus ?? '',
+    shunting: planning?.shunting ?? '',
+    breaks: planning?.breaks ?? '',
+    furtherInfo: planning?.furtherInfo ?? '',
+  }
 }
 
 function blankVehicle(options: FleetOption[]): VehicleDraft {
@@ -455,6 +785,9 @@ function blankRide(event: ClubEvent, options: FleetOption[]): RideDraft {
     trainNumber: '',
     origin: null,
     destination: null,
+    vias: [],
+    rideTypeId: '',
+    evuId: '',
     vehicles: [blankVehicle(options)],
     internalNote: '',
   }
@@ -472,6 +805,9 @@ function toDraft(ride: Ride): RideDraft {
     trainNumber: ride.trainNumber,
     origin: ride.origin,
     destination: ride.destination,
+    vias: ride.vias ?? [],
+    rideTypeId: ride.rideType?.id ?? '',
+    evuId: ride.evu?.id ?? '',
     vehicles: ride.vehicles.map((vehicle) => ({
       key: vehicle.id,
       vehicleId: vehicle.vehicleId ?? '',
@@ -517,7 +853,16 @@ function rideFieldErrors(drafts: RideDraft[]): Record<string, string> {
 function labelsForRideErrors(fields: Record<string, string> | undefined): string[] {
   if (!fields) return []
   return Object.keys(fields).map((key) => {
+    if (key.includes('driverReported')) return 'Lokführer gemeldet'
+    if (key.includes('pathStatus')) return 'Trassenplanung'
+    if (key.includes('hireStatus')) return 'Fahrzeugmiete'
+    if (key.includes('shunting')) return 'Rangierplanung'
+    if (key.includes('breaks')) return 'Pausen'
+    if (key.includes('furtherInfo')) return 'Weitere Infos'
     if (key.includes('trainNumber')) return 'Zugnummer'
+    if (key.includes('vias')) return 'Via-Bahnhof'
+    if (key.includes('rideType')) return 'Art der Fahrt'
+    if (key.includes('evu')) return 'EVU'
     if (key.includes('origin')) return 'Startbahnhof'
     if (key.includes('destination')) return 'Zielbahnhof'
     if (key.includes('vehicles')) return 'Fahrzeuge'

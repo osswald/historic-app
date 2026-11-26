@@ -349,6 +349,245 @@ final class RidePlanTest extends ApiTestCase
         self::assertTrue($this->warningsMention($this->jsonBody($client)['warnings'], '(Veröffentlicht)') || $this->warningsMention($this->jsonBody($client)['warnings'], '(Entwurf)'));
     }
 
+    public function testViaStationsRideTypeAndEvuPersistInOrder(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Mit Via');
+        $dayId = $created['days'][0]['id'];
+        $vehicleId = $this->createVehicle($client, 'Be 4/6');
+
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        self::assertResponseIsSuccessful();
+        $catalog = $this->jsonBody($client);
+        $typeId = $this->catalogId($catalog['rideTypes'], 'Personenextrazug (NON-PUBLIC)');
+        $evuId = $this->catalogId($catalog['evus'], 'SBBP');
+        self::assertNotNull($this->catalogId($catalog['rideTypes'], 'Leermaterialextrazug'));
+        self::assertNotNull($this->catalogId($catalog['rideTypes'], 'Lokextrazug'));
+        self::assertNotNull($this->catalogId($catalog['evus'], 'TR'));
+        self::assertNotNull($this->catalogId($catalog['evus'], 'RAILH'));
+        self::assertNotNull($this->catalogId($catalog['evus'], 'DVZO'));
+
+        $ride = $this->ride($dayId, $vehicleId, null, null, null, null);
+        $ride['vias'] = [
+            ['didokCode' => '8503123', 'name' => 'Bauma', 'abbreviation' => 'BAU'],
+            ['didokCode' => '8503125', 'name' => 'Wald', 'abbreviation' => 'WAL'],
+        ];
+        $ride['rideTypeId'] = $typeId;
+        $ride['evuId'] = $evuId;
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$ride]]);
+        self::assertResponseIsSuccessful();
+        $saved = $this->jsonBody($client);
+        self::assertNull($saved['rides'][0]['departureTime']);
+        self::assertNull($saved['rides'][0]['arrivalTime']);
+        self::assertSame('Bauma', $saved['rides'][0]['vias'][0]['name']);
+        self::assertSame('WAL', $saved['rides'][0]['vias'][1]['abbreviation']);
+        self::assertSame('Personenextrazug (NON-PUBLIC)', $saved['rides'][0]['rideType']['name']);
+        self::assertSame('SBBP', $saved['rides'][0]['evu']['name']);
+        self::assertSame([], $saved['warnings']);
+
+        $updated = $ride;
+        $updated['id'] = $saved['rides'][0]['id'];
+        $updated['vias'] = [
+            ['didokCode' => '8503125', 'name' => 'Wald', 'abbreviation' => 'WAL'],
+            ['didokCode' => '8503123', 'name' => 'Bauma', 'abbreviation' => 'BAU'],
+            ['didokCode' => '8503100', 'name' => 'Rüti ZH', 'abbreviation' => 'RUE'],
+        ];
+        $updated['evuId'] = $this->catalogId($saved['evus'], 'DVZO');
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$updated]]);
+        self::assertResponseIsSuccessful();
+
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        self::assertResponseIsSuccessful();
+        $loaded = $this->jsonBody($client);
+        self::assertSame(['Wald', 'Bauma', 'Rüti ZH'], array_column($loaded['rides'][0]['vias'], 'name'));
+        self::assertSame('DVZO', $loaded['rides'][0]['evu']['name']);
+        self::assertSame($typeId, $loaded['rides'][0]['rideType']['id']);
+
+        $broken = $updated;
+        $broken['vias'] = [['didokCode' => 'abc', 'name' => '']];
+        $broken['rideTypeId'] = '00000000-0000-0000-0000-000000000099';
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$broken]]);
+        self::assertResponseStatusCodeSame(422);
+        $errors = $this->jsonBody($client)['errors'];
+        self::assertSame('Die Eingaben sind unvollständig.', $this->jsonBody($client)['error']);
+        self::assertSame(
+            'Bitte den DiDok-Code des Via-Bahnhofs aus der Suche übernehmen.',
+            $errors['rides.0.vias.0.didokCode'],
+        );
+        self::assertSame('Bitte eine Art der Fahrt aus der Liste wählen.', $errors['rides.0.rideTypeId']);
+
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        self::assertSame(['Wald', 'Bauma', 'Rüti ZH'], array_column($this->jsonBody($client)['rides'][0]['vias'], 'name'));
+    }
+
+    public function testEventPlanningFieldsPersistAndCanStayUnset(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Planung am Anlass');
+        $dayId = $created['days'][0]['id'];
+        $vehicleId = $this->createVehicle($client);
+        $ride = $this->ride($dayId, $vehicleId, '09:10', 0, null, null);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
+            'rides' => [$ride],
+            'planning' => [
+                'driverReported' => true,
+                'pathStatus' => 'ordered',
+                'hireStatus' => 'confirmed',
+                'shunting' => 'Gleis 3',
+                'breaks' => 'Mittag in Hinwil',
+                'furtherInfo' => 'Lokführer meldet sich um 8 Uhr',
+            ],
+        ]);
+        self::assertResponseIsSuccessful();
+        $saved = $this->jsonBody($client);
+        self::assertTrue($saved['planning']['driverReported']);
+        self::assertSame('ordered', $saved['planning']['pathStatus']);
+        self::assertSame('bestellt', $saved['planning']['pathStatusLabel']);
+        self::assertSame('confirmed', $saved['planning']['hireStatus']);
+        self::assertSame('bestätigt', $saved['planning']['hireStatusLabel']);
+        self::assertSame('Gleis 3', $saved['planning']['shunting']);
+        self::assertSame('Mittag in Hinwil', $saved['planning']['breaks']);
+        self::assertSame('Lokführer meldet sich um 8 Uhr', $saved['planning']['furtherInfo']);
+
+        $ride['id'] = $saved['rides'][0]['id'];
+        $ride['trainNumber'] = '30432';
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', ['rides' => [$ride]]);
+        self::assertResponseIsSuccessful();
+        self::assertSame('Gleis 3', $this->jsonBody($client)['planning']['shunting']);
+        self::assertTrue($this->jsonBody($client)['planning']['driverReported']);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
+            'rides' => [$ride],
+            'planning' => [
+                'driverReported' => null,
+                'pathStatus' => 'not_applicable',
+                'hireStatus' => null,
+                'shunting' => '',
+                'breaks' => 'Pause kurz',
+                'furtherInfo' => null,
+            ],
+        ]);
+        self::assertResponseIsSuccessful();
+
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        self::assertResponseIsSuccessful();
+        $loaded = $this->jsonBody($client);
+        self::assertNull($loaded['planning']['driverReported']);
+        self::assertSame('nicht zutreffend', $loaded['planning']['pathStatusLabel']);
+        self::assertNull($loaded['planning']['hireStatus']);
+        self::assertNull($loaded['planning']['shunting']);
+        self::assertSame('Pause kurz', $loaded['planning']['breaks']);
+        self::assertNull($loaded['planning']['furtherInfo']);
+        self::assertSame('30432', $loaded['rides'][0]['trainNumber']);
+
+        $this->request($client, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
+            'rides' => [$ride],
+            'planning' => [
+                'driverReported' => 'ja',
+                'pathStatus' => 'nope',
+                'hireStatus' => 'confirmed',
+                'shunting' => 'Gleis 3',
+                'breaks' => '',
+                'furtherInfo' => '',
+            ],
+        ]);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Die Eingaben sind unvollständig.', $this->jsonBody($client)['error']);
+        self::assertSame('Lokführer gemeldet ist Ja oder Nein.', $this->jsonBody($client)['errors']['planning.driverReported']);
+        self::assertSame(
+            'Trassenplanung ist nicht zutreffend, angefragt, bestellt oder angeordnet.',
+            $this->jsonBody($client)['errors']['planning.pathStatus'],
+        );
+
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        self::assertSame('Pause kurz', $this->jsonBody($client)['planning']['breaks']);
+        self::assertNull($this->jsonBody($client)['planning']['driverReported']);
+    }
+
+    public function testAdminsExtendTheListsAndRejectDuplicates(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Katalog');
+        $suffix = bin2hex(random_bytes(3));
+
+        $this->request($client, 'POST', '/api/v1/ride-types', ['name' => '  ']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Bitte einen Namen angeben.', $this->jsonBody($client)['errors']['name']);
+
+        $this->request($client, 'POST', '/api/v1/ride-types', ['name' => 'Personenextrazug (NON-PUBLIC)']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Diese Art der Fahrt gibt es bereits.', $this->jsonBody($client)['error']);
+
+        $addedType = 'Extrazug '.$suffix;
+        $this->request($client, 'POST', '/api/v1/ride-types', ['name' => $addedType]);
+        self::assertResponseStatusCodeSame(201);
+        self::assertSame($addedType, $this->jsonBody($client)['name']);
+
+        $this->request($client, 'POST', '/api/v1/evus', ['name' => 'sbbp']);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSame('Dieses EVU gibt es bereits.', $this->jsonBody($client)['error']);
+
+        $addedEvu = 'EVU'.$suffix;
+        $this->request($client, 'POST', '/api/v1/evus', ['name' => $addedEvu]);
+        self::assertResponseStatusCodeSame(201);
+
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        self::assertResponseIsSuccessful();
+        $body = $this->jsonBody($client);
+        self::assertTrue($body['canManageCatalogs']);
+        self::assertNotNull($this->catalogId($body['rideTypes'], $addedType));
+        self::assertNotNull($this->catalogId($body['evus'], $addedEvu));
+    }
+
+    public function testRidePlannerUsesTheListsButCannotExtendThem(): void
+    {
+        $client = $this->browser();
+        $created = $this->createEvent($client, 'Planer');
+        $dayId = $created['days'][0]['id'];
+        $vehicleId = $this->createVehicle($client);
+        $this->request($client, 'GET', '/api/v1/events/'.$created['id'].'/rides');
+        $typeId = $this->catalogId($this->jsonBody($client)['rideTypes'], 'Lokextrazug');
+        $evuId = $this->catalogId($this->jsonBody($client)['evus'], 'TR');
+
+        $this->withGroups('Fahrtenplanung', function (KernelBrowser $planner) use ($created, $dayId, $vehicleId, $typeId, $evuId): void {
+            $this->request($planner, 'POST', '/api/v1/evus', ['name' => 'Fremd EVU']);
+            self::assertResponseStatusCodeSame(403);
+            self::assertSame('Listen ergänzen dürfen nur Administratoren.', $this->jsonBody($planner)['error']);
+
+            $ride = $this->ride($dayId, $vehicleId, '08:00', 0, '09:00', 0);
+            $ride['rideTypeId'] = $typeId;
+            $ride['evuId'] = $evuId;
+            $ride['vias'] = [];
+            $this->request($planner, 'PUT', '/api/v1/events/'.$created['id'].'/rides', [
+                'rides' => [$ride],
+                'planning' => [
+                    'driverReported' => false,
+                    'pathStatus' => 'requested',
+                    'hireStatus' => 'requested',
+                    'shunting' => null,
+                    'breaks' => null,
+                    'furtherInfo' => 'Nur die Fahrtenplanung',
+                ],
+            ]);
+            self::assertResponseIsSuccessful();
+            self::assertFalse($this->jsonBody($planner)['canManageCatalogs']);
+            self::assertSame('Lokextrazug', $this->jsonBody($planner)['rides'][0]['rideType']['name']);
+            self::assertSame('angefragt', $this->jsonBody($planner)['planning']['pathStatusLabel']);
+        });
+    }
+
+    /** @param list<array{id: string, name: string}> $items */
+    private function catalogId(array $items, string $name): string
+    {
+        foreach ($items as $item) {
+            if ($item['name'] === $name) {
+                return $item['id'];
+            }
+        }
+        self::fail('Der Listenwert '.$name.' fehlt.');
+    }
+
     /** @param callable(KernelBrowser): void $callback */
     private function withGroups(string $groups, callable $callback): void
     {

@@ -65,6 +65,14 @@ class Ride
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $internalNote;
 
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
+    private ?RideType $rideType = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'RESTRICT')]
+    private ?Evu $evu = null;
+
     #[ORM\Column]
     private int $sortOrder;
 
@@ -72,6 +80,11 @@ class Ride
     #[ORM\OneToMany(mappedBy: 'ride', targetEntity: RideVehicle::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['sortOrder' => 'ASC'])]
     private Collection $vehicles;
+
+    /** @var Collection<int, RideVia> */
+    #[ORM\OneToMany(mappedBy: 'ride', targetEntity: RideVia::class, cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['sortOrder' => 'ASC'])]
+    private Collection $vias;
 
     public function __construct(
         Event $event,
@@ -109,6 +122,7 @@ class Ride
         $this->internalNote = $internalNote;
         $this->sortOrder = $sortOrder;
         $this->vehicles = new ArrayCollection();
+        $this->vias = new ArrayCollection();
     }
 
     public function id(): string
@@ -186,9 +200,54 @@ class Ride
         return $this->internalNote;
     }
 
+    public function rideType(): ?RideType
+    {
+        return $this->rideType;
+    }
+
+    public function evu(): ?Evu
+    {
+        return $this->evu;
+    }
+
     public function sortOrder(): int
     {
         return $this->sortOrder;
+    }
+
+    /** @return list<RideVia> */
+    public function vias(): array
+    {
+        return array_values($this->vias->toArray());
+    }
+
+    public function chooseType(?RideType $rideType): void
+    {
+        $this->rideType = $rideType;
+    }
+
+    public function chooseEvu(?Evu $evu): void
+    {
+        $this->evu = $evu;
+    }
+
+    /**
+     * @param list<array{didokCode: string, name: string, abbreviation: ?string}> $stations
+     */
+    public function replaceVias(array $stations): void
+    {
+        foreach ($this->vias->toArray() as $current) {
+            $this->vias->removeElement($current);
+        }
+        foreach ($stations as $index => $station) {
+            $this->vias->add(new RideVia(
+                $this,
+                $station['didokCode'],
+                $station['name'],
+                $station['abbreviation'],
+                $index,
+            ));
+        }
     }
 
     /** @return list<RideVehicle> */
@@ -281,6 +340,11 @@ class Ride
             'destinationName' => $this->destinationName,
             'destinationAbbreviation' => $this->destinationAbbreviation,
             'vehicles' => array_map(static fn (RideVehicle $assignment): array => $assignment->toAudit(), $this->assignments()),
+            'vias' => array_map(static fn (RideVia $via): array => $via->toAudit(), $this->vias()),
+            'rideTypeId' => $this->rideType?->id(),
+            'rideTypeName' => $this->rideType?->name(),
+            'evuId' => $this->evu?->id(),
+            'evuName' => $this->evu?->name(),
             'internalNote' => $this->internalNote,
         ];
     }

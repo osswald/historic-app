@@ -5,17 +5,33 @@ declare(strict_types=1);
 namespace App\Application\Ride;
 
 use App\Domain\Fleet\Vehicle;
+use App\Domain\Ride\EventRidePlan;
+use App\Domain\Ride\EventRidePlanRepository;
+use App\Domain\Ride\Evu;
+use App\Domain\Ride\EvuRepository;
+use App\Domain\Ride\HireStatus;
+use App\Domain\Ride\PathStatus;
 use App\Domain\Ride\Ride;
+use App\Domain\Ride\RideType;
+use App\Domain\Ride\RideTypeRepository;
 use App\Domain\Ride\RideVehicle;
+use App\Domain\Ride\RideVia;
 use App\Security\MemberUser;
 
 final class RidePresenter
 {
+    public function __construct(
+        private RideTypeRepository $rideTypes,
+        private EvuRepository $evus,
+        private EventRidePlanRepository $plans,
+    ) {
+    }
+
     /**
      * @param list<Ride> $rides
      * @param list<string> $warnings
      * @param list<Vehicle> $fleet
-     * @return array{canEdit: bool, warnings: list<string>, rides: list<array<string, mixed>>, eventVehicles: list<array<string, mixed>>, fleet: list<array<string, mixed>>}
+     * @return array<string, mixed>
      */
     public function present(\App\Domain\Event\Event $event, array $rides, MemberUser $user, array $warnings, array $fleet): array
     {
@@ -23,8 +39,26 @@ final class RidePresenter
 
         return [
             'canEdit' => $canEdit,
+            'canManageCatalogs' => $user->isAdmin(),
             'warnings' => $canEdit ? array_values($warnings) : [],
             'rides' => array_map(fn (Ride $ride): array => $this->ride($ride, $canEdit), $rides),
+            'planning' => $this->planning($this->plans->forEvent($event->id())),
+            'rideTypes' => array_map(static fn (RideType $type): array => [
+                'id' => $type->id(),
+                'name' => $type->name(),
+            ], $this->rideTypes->all()),
+            'evus' => array_map(static fn (Evu $evu): array => [
+                'id' => $evu->id(),
+                'name' => $evu->name(),
+            ], $this->evus->all()),
+            'pathStatuses' => array_map(static fn (PathStatus $status): array => [
+                'value' => $status->value,
+                'label' => $status->label(),
+            ], PathStatus::cases()),
+            'hireStatuses' => array_map(static fn (HireStatus $status): array => [
+                'value' => $status->value,
+                'label' => $status->label(),
+            ], HireStatus::cases()),
             'eventVehicles' => array_map(static fn (\App\Domain\Event\EventVehicle $link): array => [
                 'vehicleId' => $link->vehicle()->id(),
                 'name' => $link->vehicle()->name(),
@@ -60,8 +94,36 @@ final class RidePresenter
                 'name' => $ride->destinationName(),
                 'abbreviation' => $ride->destinationAbbreviation(),
             ],
+            'vias' => array_map(static fn (RideVia $via): array => [
+                'didokCode' => $via->didokCode(),
+                'name' => $via->name(),
+                'abbreviation' => $via->abbreviation(),
+            ], $ride->vias()),
+            'rideType' => $ride->rideType() instanceof RideType ? [
+                'id' => $ride->rideType()->id(),
+                'name' => $ride->rideType()->name(),
+            ] : null,
+            'evu' => $ride->evu() instanceof Evu ? [
+                'id' => $ride->evu()->id(),
+                'name' => $ride->evu()->name(),
+            ] : null,
             'vehicles' => array_map(fn (RideVehicle $assignment): array => $this->assignment($assignment), $ride->assignments()),
             'internalNote' => $canSeeInternal ? $ride->internalNote() : null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function planning(?EventRidePlan $plan): array
+    {
+        return [
+            'driverReported' => $plan?->driverReported(),
+            'pathStatus' => $plan?->pathStatus()?->value,
+            'pathStatusLabel' => $plan?->pathStatus()?->label(),
+            'hireStatus' => $plan?->hireStatus()?->value,
+            'hireStatusLabel' => $plan?->hireStatus()?->label(),
+            'shunting' => $plan?->shuntingNote(),
+            'breaks' => $plan?->breaksNote(),
+            'furtherInfo' => $plan?->furtherInfo(),
         ];
     }
 

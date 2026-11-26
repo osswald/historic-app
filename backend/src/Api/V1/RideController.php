@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\V1;
 
+use App\Application\Ride\ExtendRideCatalog;
 use App\Application\Ride\RideCatalog;
 use App\Application\Ride\SaveRides;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,6 +24,18 @@ final class RideController extends ApiController
     public function replace(string $id, Request $request, SaveRides $save): Response
     {
         return $this->jsonData($save->replace($this->member(), $id, $this->payload($request)));
+    }
+
+    #[Route('/api/v1/ride-types', name: 'api_ride_types_add', methods: ['POST'])]
+    public function addRideType(Request $request, ExtendRideCatalog $catalog): Response
+    {
+        return $this->jsonData($catalog->addRideType($this->member(), $this->payload($request)), 201);
+    }
+
+    #[Route('/api/v1/evus', name: 'api_evus_add', methods: ['POST'])]
+    public function addEvu(Request $request, ExtendRideCatalog $catalog): Response
+    {
+        return $this->jsonData($catalog->addEvu($this->member(), $this->payload($request)), 201);
     }
 
     /** @return array<string, mixed> */

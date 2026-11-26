@@ -43,6 +43,27 @@ export type OwnVehicleOption = {
   statusLabel: string
 }
 
+export type CatalogValue = {
+  id: string
+  name: string
+}
+
+export type StatusOption = {
+  value: string
+  label: string
+}
+
+export type RidePlanning = {
+  driverReported: boolean | null
+  pathStatus: string | null
+  pathStatusLabel: string | null
+  hireStatus: string | null
+  hireStatusLabel: string | null
+  shunting: string | null
+  breaks: string | null
+  furtherInfo: string | null
+}
+
 export type Ride = {
   id: string
   eventDayId: string
@@ -53,6 +74,9 @@ export type Ride = {
   trainNumber: string
   origin: StationChoice
   destination: StationChoice
+  vias: StationChoice[]
+  rideType: CatalogValue | null
+  evu: CatalogValue | null
   vehicles: RideVehicle[]
   internalNote: string | null
 }
@@ -80,8 +104,14 @@ export type FleetOption = {
 
 export type RidePlan = {
   canEdit: boolean
+  canManageCatalogs: boolean
   warnings: string[]
   rides: Ride[]
+  planning: RidePlanning
+  rideTypes: CatalogValue[]
+  evus: CatalogValue[]
+  pathStatuses: StatusOption[]
+  hireStatuses: StatusOption[]
   eventVehicles: EventVehicle[]
   fleet: FleetOption[]
 }

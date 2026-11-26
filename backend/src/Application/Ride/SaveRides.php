@@ -12,8 +12,16 @@ use App\Domain\Event\EventDay;
 use App\Domain\Fleet\Vehicle;
 use App\Domain\Fleet\VehicleRepository;
 use App\Domain\Ride\DayOffset;
+use App\Domain\Ride\EventRidePlan;
+use App\Domain\Ride\EventRidePlanRepository;
+use App\Domain\Ride\Evu;
+use App\Domain\Ride\EvuRepository;
+use App\Domain\Ride\HireStatus;
+use App\Domain\Ride\PathStatus;
 use App\Domain\Ride\Ride;
 use App\Domain\Ride\RideRepository;
+use App\Domain\Ride\RideType;
+use App\Domain\Ride\RideTypeRepository;
 use App\Domain\Ride\RideWindow;
 use App\Infrastructure\Audit\AuditRecorder;
 use App\Security\MemberUser;
@@ -25,6 +33,9 @@ final class SaveRides
     public function __construct(
         private EventCatalog $events,
         private RideRepository $rides,
+        private RideTypeRepository $rideTypes,
+        private EvuRepository $evus,
+        private EventRidePlanRepository $plans,
         private VehicleRepository $vehicles,
         private ClubVehicleOverlap $overlap,
         private RidePresenter $presenter,
@@ -45,6 +56,8 @@ final class SaveRides
         }
 
         $event = $this->events->visible($eventId, $actor);
+        $planningErrors = [];
+        $planning = array_key_exists('planning', $payload) ? $this->normalizePlanning($payload['planning'], $planningErrors) : null;
         $fleet = [];
         foreach ($this->vehicles->all() as $vehicle) {
             $fleet[$vehicle->id()] = $vehicle;
@@ -52,7 +65,14 @@ final class SaveRides
         if (array_key_exists('eventVehicles', $payload)) {
             $event->replaceAssignedVehicles($this->eventVehicles($payload['eventVehicles'], $fleet));
         }
-        $input = $this->normalize($event, $payload, $fleet);
+        try {
+            $input = $this->normalize($event, $payload, $fleet);
+        } catch (InvalidRequest $invalid) {
+            throw new InvalidRequest($invalid->errors + $planningErrors);
+        }
+        if ($planningErrors !== []) {
+            throw new InvalidRequest($planningErrors);
+        }
         if (array_key_exists('eventVehicles', $payload)) {
             $this->assertSubset($event, $input);
         } else {
@@ -90,6 +110,7 @@ final class SaveRides
                     $row['sortOrder'],
                 );
                 $current->replaceAssignments($row['vehicles']);
+                $this->applyRideExtras($current, $row);
                 $updates[] = ['ride' => $current, 'before' => $before];
                 $saved[] = $current;
                 $kept[$current->id()] = true;
@@ -114,6 +135,7 @@ final class SaveRides
                 $row['sortOrder'],
             );
             $created->replaceAssignments($row['vehicles']);
+            $this->applyRideExtras($created, $row, true);
             $this->rides->add($created);
             $creates[] = $created;
             $saved[] = $created;
@@ -121,6 +143,9 @@ final class SaveRides
 
         $warnings = $this->overlap->warnings($saved, $this->rides->withOwnVehiclesExcept($event->id()));
         $now = $this->clock->now();
+        if ($planning !== null) {
+            $this->storePlanning($actor, $event, $planning, $now);
+        }
         foreach ($creates as $ride) {
             $this->audit->record($actor->getUserIdentifier(), 'ride', $ride->id(), 'create', null, $ride->toAudit(), $now);
         }
@@ -166,6 +191,12 @@ final class SaveRides
      *     destinationName: string,
      *     destinationAbbreviation: ?string,
      *     vehicles: list<Vehicle>,
+     *     applyVias: bool,
+     *     vias: list<array{didokCode: string, name: string, abbreviation: ?string}>,
+     *     applyRideType: bool,
+     *     rideType: ?RideType,
+     *     applyEvu: bool,
+     *     evu: ?Evu,
      *     internalNote: ?string,
      *     sortOrder: int
      * }>
@@ -179,6 +210,8 @@ final class SaveRides
         $errors = [];
         $rows = [];
         $seen = [];
+        $rideTypeIndex = $this->indexedRideTypes();
+        $evuIndex = $this->indexedEvus();
         foreach ($payload['rides'] as $index => $ride) {
             if (!is_array($ride)) {
                 $errors['rides.'.$index] = 'Die Fahrt ist ungültig.';
@@ -234,6 +267,9 @@ final class SaveRides
 
             $origin = $this->station($ride['origin'] ?? null, 'rides.'.$index.'.origin', 'Startbahnhof', $errors);
             $destination = $this->station($ride['destination'] ?? null, 'rides.'.$index.'.destination', 'Zielbahnhof', $errors);
+            $viaChoice = $this->vias($ride, $index, $errors);
+            $rideTypeChoice = $this->catalogChoice($ride, 'rideTypeId', $rideTypeIndex, 'rides.'.$index.'.rideTypeId', 'Bitte eine Art der Fahrt aus der Liste wählen.', $errors);
+            $evuChoice = $this->catalogChoice($ride, 'evuId', $evuIndex, 'rides.'.$index.'.evuId', 'Bitte ein EVU aus der Liste wählen.', $errors);
             $vehicles = $this->vehiclesFor($ride['vehicles'] ?? null, $index, $fleet, $errors);
 
             $internalNote = trim((string) ($ride['internalNote'] ?? ''));
@@ -252,16 +288,10 @@ final class SaveRides
                 $errors['rides.'.$index.'.arrivalTime'] = 'Die Ankunft muss nach der Abfahrt liegen.';
             }
 
-            if (!$day instanceof EventDay || $origin === null || $destination === null || $vehicles === null || $trainNumber === '' || mb_strlen($trainNumber) > 20) {
+            if (!$day instanceof EventDay || $origin === null || $destination === null || $vehicles === null || $viaChoice === null || $trainNumber === '' || mb_strlen($trainNumber) > 20) {
                 continue;
             }
-            if (
-                isset($errors['rides.'.$index.'.departureTime'])
-                || isset($errors['rides.'.$index.'.departureOffset'])
-                || isset($errors['rides.'.$index.'.arrivalTime'])
-                || isset($errors['rides.'.$index.'.arrivalOffset'])
-                || isset($errors['rides.'.$index.'.internalNote'])
-            ) {
+            if ($this->hasFieldErrors($errors, (string) $index)) {
                 continue;
             }
 
@@ -280,6 +310,12 @@ final class SaveRides
                 'destinationName' => $destination['name'],
                 'destinationAbbreviation' => $destination['abbreviation'],
                 'vehicles' => $vehicles,
+                'applyVias' => $viaChoice['apply'],
+                'vias' => $viaChoice['stations'],
+                'applyRideType' => $rideTypeChoice['apply'],
+                'rideType' => $rideTypeChoice['value'],
+                'applyEvu' => $evuChoice['apply'],
+                'evu' => $evuChoice['value'],
                 'internalNote' => $internalNote !== '' ? $internalNote : null,
                 'sortOrder' => count($rows),
             ];
@@ -290,6 +326,277 @@ final class SaveRides
         }
 
         return $rows;
+    }
+
+    /**
+     * @param array{applyVias: bool, vias: list<array{didokCode: string, name: string, abbreviation: ?string}>, applyRideType: bool, rideType: mixed, applyEvu: bool, evu: mixed} $row
+     */
+    private function applyRideExtras(Ride $ride, array $row, bool $creating = false): void
+    {
+        if ($row['applyVias'] || $creating) {
+            $ride->replaceVias($row['vias']);
+        }
+        if ($row['applyRideType'] || $creating) {
+            $rideType = $row['rideType'];
+            $ride->chooseType($rideType instanceof RideType ? $rideType : null);
+        }
+        if ($row['applyEvu'] || $creating) {
+            $evu = $row['evu'];
+            $ride->chooseEvu($evu instanceof Evu ? $evu : null);
+        }
+    }
+
+    /**
+     * @param array{
+     *     driverReported: ?bool,
+     *     pathStatus: ?PathStatus,
+     *     hireStatus: ?HireStatus,
+     *     shunting: ?string,
+     *     breaks: ?string,
+     *     furtherInfo: ?string
+     * } $planning
+     */
+    private function storePlanning(MemberUser $actor, Event $event, array $planning, \DateTimeImmutable $now): void
+    {
+        $current = $this->plans->forEvent($event->id());
+        $empty = $planning['driverReported'] === null
+            && $planning['pathStatus'] === null
+            && $planning['hireStatus'] === null
+            && $planning['shunting'] === null
+            && $planning['breaks'] === null
+            && $planning['furtherInfo'] === null;
+        if (!$current instanceof EventRidePlan && $empty) {
+            return;
+        }
+
+        if (!$current instanceof EventRidePlan) {
+            $current = new EventRidePlan($event, $now);
+            $this->plans->add($current);
+            $before = null;
+            $action = 'create';
+        } else {
+            $before = $current->toAudit();
+            $action = 'update';
+        }
+
+        $current->revise(
+            $planning['driverReported'],
+            $planning['pathStatus'],
+            $planning['hireStatus'],
+            $planning['shunting'],
+            $planning['breaks'],
+            $planning['furtherInfo'],
+            $now,
+        );
+        $after = $current->toAudit();
+        if ($before === $after) {
+            return;
+        }
+
+        $this->audit->record($actor->getUserIdentifier(), 'event_ride_plan', $current->id(), $action, $before, $after, $now);
+    }
+
+    /**
+     * @return array{
+     *     driverReported: ?bool,
+     *     pathStatus: ?PathStatus,
+     *     hireStatus: ?HireStatus,
+     *     shunting: ?string,
+     *     breaks: ?string,
+     *     furtherInfo: ?string
+     * }
+     */
+    /**
+     * @param array<string, string> $errors
+     */
+    private function normalizePlanning(mixed $value, array &$errors): ?array
+    {
+        if (!is_array($value)) {
+            $errors['planning'] = 'Die Fahrtenplanung ist ungültig.';
+
+            return null;
+        }
+
+        $driverReported = $this->optionalBool($value['driverReported'] ?? null, 'planning.driverReported', 'Lokführer gemeldet ist Ja oder Nein.', $errors);
+        $pathStatus = $this->optionalStatus($value['pathStatus'] ?? null, PathStatus::class, 'planning.pathStatus', 'Trassenplanung ist nicht zutreffend, angefragt, bestellt oder angeordnet.', $errors);
+        $hireStatus = $this->optionalStatus($value['hireStatus'] ?? null, HireStatus::class, 'planning.hireStatus', 'Fahrzeugmiete ist nicht zutreffend, angefragt, bestellt oder bestätigt.', $errors);
+        $shunting = $this->optionalText($value['shunting'] ?? null, 'planning.shunting', 'Rangierplanung', $errors);
+        $breaks = $this->optionalText($value['breaks'] ?? null, 'planning.breaks', 'Pausen', $errors);
+        $furtherInfo = $this->optionalText($value['furtherInfo'] ?? null, 'planning.furtherInfo', 'Weitere Infos', $errors);
+        if ($errors !== []) {
+            return null;
+        }
+
+        return [
+            'driverReported' => $driverReported,
+            'pathStatus' => $pathStatus,
+            'hireStatus' => $hireStatus,
+            'shunting' => $shunting,
+            'breaks' => $breaks,
+            'furtherInfo' => $furtherInfo,
+        ];
+    }
+
+    /** @param array<string, string> $errors */
+    private function optionalBool(mixed $value, string $key, string $message, array &$errors): ?bool
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_bool($value)) {
+            $errors[$key] = $message;
+
+            return null;
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param class-string<PathStatus|HireStatus> $enum
+     * @param array<string, string> $errors
+     */
+    private function optionalStatus(mixed $value, string $enum, string $key, string $message, array &$errors): PathStatus|HireStatus|null
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (!is_string($value)) {
+            $errors[$key] = $message;
+
+            return null;
+        }
+        $status = match ($enum) {
+            PathStatus::class => PathStatus::tryFrom($value),
+            HireStatus::class => HireStatus::tryFrom($value),
+            default => null,
+        };
+        if (!$status instanceof PathStatus && !$status instanceof HireStatus) {
+            $errors[$key] = $message;
+
+            return null;
+        }
+
+        return $status;
+    }
+
+    /** @param array<string, string> $errors */
+    private function optionalText(mixed $value, string $key, string $label, array &$errors): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        if (!is_string($value)) {
+            $errors[$key] = 'Bitte '.$label.' als Text angeben.';
+
+            return null;
+        }
+        $text = trim($value);
+        if (mb_strlen($text) > 4000) {
+            $errors[$key] = $label.' darf höchstens 4000 Zeichen haben.';
+
+            return null;
+        }
+
+        return $text !== '' ? $text : null;
+    }
+
+    /**
+     * @param array<string, mixed> $ride
+     * @param array<string, string> $errors
+     * @return array{apply: bool, stations: list<array{didokCode: string, name: string, abbreviation: ?string}>}|null
+     */
+    private function vias(array $ride, int|string $index, array &$errors): ?array
+    {
+        if (!array_key_exists('vias', $ride)) {
+            return ['apply' => false, 'stations' => []];
+        }
+        $value = $ride['vias'];
+        if ($value === null) {
+            return ['apply' => true, 'stations' => []];
+        }
+        if (!is_array($value)) {
+            $errors['rides.'.$index.'.vias'] = 'Die Via-Bahnhöfe sind ungültig.';
+
+            return null;
+        }
+
+        $stations = [];
+        $valid = true;
+        foreach ($value as $viaIndex => $via) {
+            $station = $this->station($via, 'rides.'.$index.'.vias.'.$viaIndex, 'Via-Bahnhof', $errors);
+            if ($station === null) {
+                $valid = false;
+                continue;
+            }
+            $stations[] = $station;
+        }
+        if (!$valid) {
+            return null;
+        }
+
+        return ['apply' => true, 'stations' => $stations];
+    }
+
+    /**
+     * @template T of object
+     * @param array<string, mixed> $ride
+     * @param array<string, T> $known
+     * @param array<string, string> $errors
+     * @return array{apply: bool, value: T|null}
+     */
+    private function catalogChoice(array $ride, string $field, array $known, string $errorKey, string $message, array &$errors): array
+    {
+        if (!array_key_exists($field, $ride)) {
+            return ['apply' => false, 'value' => null];
+        }
+        $value = $ride[$field];
+        if ($value === null || (is_string($value) && trim($value) === '')) {
+            return ['apply' => true, 'value' => null];
+        }
+        $id = trim((string) $value);
+        if (!isset($known[$id])) {
+            $errors[$errorKey] = $message;
+
+            return ['apply' => true, 'value' => null];
+        }
+
+        return ['apply' => true, 'value' => $known[$id]];
+    }
+
+    /** @return array<string, RideType> */
+    private function indexedRideTypes(): array
+    {
+        $indexed = [];
+        foreach ($this->rideTypes->all() as $rideType) {
+            $indexed[$rideType->id()] = $rideType;
+        }
+
+        return $indexed;
+    }
+
+    /** @return array<string, Evu> */
+    private function indexedEvus(): array
+    {
+        $indexed = [];
+        foreach ($this->evus->all() as $evu) {
+            $indexed[$evu->id()] = $evu;
+        }
+
+        return $indexed;
+    }
+
+    /** @param array<string, string> $errors */
+    private function hasFieldErrors(array $errors, string $index): bool
+    {
+        $prefix = 'rides.'.$index.'.';
+        foreach (array_keys($errors) as $key) {
+            if ($key === 'rides.'.$index || str_starts_with($key, $prefix)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
