@@ -43,6 +43,7 @@ final class TasksMapper
      */
     public static function taskList(array $row): array
     {
+        $row = self::unwrapData($row);
         $id = self::id($row['id'] ?? null);
         $tasks = $row['tasks'] ?? [];
 
@@ -115,11 +116,28 @@ final class TasksMapper
     /** @return list<mixed> */
     public static function collection(mixed $data): array
     {
+        if (is_array($data)) {
+            $data = self::unwrapData($data);
+        }
         if (!is_array($data) || !array_is_list($data)) {
             throw new \App\Application\UpstreamUnavailable('Die Aufgaben-App hat nicht mit einer Liste geantwortet.');
         }
 
         return $data;
+    }
+
+    /**
+     * The tasks API wraps both lists and single records in {"data": ...}.
+     *
+     * @return array<mixed>
+     */
+    private static function unwrapData(array $data): array
+    {
+        if (array_is_list($data) || !array_key_exists('data', $data) || !is_array($data['data'])) {
+            return $data;
+        }
+
+        return $data['data'];
     }
 
     /** @param array<string, mixed> $row */

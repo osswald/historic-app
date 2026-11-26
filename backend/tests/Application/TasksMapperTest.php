@@ -54,4 +54,20 @@ final class TasksMapperTest extends TestCase
         $this->expectException(UpstreamUnavailable::class);
         TasksMapper::collection(['tasks' => []]);
     }
+
+    public function testTheDataEnvelopeIsUnwrapped(): void
+    {
+        $tasks = TasksMapper::collection(['data' => [
+            ['id' => 'task-1', 'status' => 'todo'],
+        ]]);
+        $list = TasksMapper::taskList(['data' => [
+            'id' => 'list-1',
+            'name' => 'Depot',
+            'tasks' => [['id' => 'task-1', 'status' => 'done']],
+        ]]);
+
+        self::assertSame('task-1', TasksMapper::tasks($tasks)[0]['id']);
+        self::assertSame('list-1', $list['id']);
+        self::assertSame('task-1', $list['tasks'][0]['id']);
+    }
 }
