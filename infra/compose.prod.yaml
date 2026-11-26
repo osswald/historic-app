@@ -44,6 +44,9 @@ services:
       CORS_ALLOW_ORIGIN: "^https://app[.]historic-winterthur[.]ch$$"
       DEFAULT_URI: https://app.historic-winterthur.ch
       SERVER_NAME: app.historic-winterthur.ch
+      SPOND_USERNAME: ${SPOND_USERNAME:-}
+      SPOND_PASSWORD: ${SPOND_PASSWORD:-}
+      SPOND_PYTHON: /opt/spond/bin/python
     volumes:
       - historic_caddy_data:/data
       - historic_caddy_config:/config

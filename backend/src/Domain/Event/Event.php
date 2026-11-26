@@ -41,6 +41,9 @@ class Event
     #[ORM\Column(length: 200, nullable: true)]
     private ?string $location;
 
+    #[ORM\Column(length: 80, nullable: true, unique: true)]
+    private ?string $spondEventId = null;
+
     #[ORM\Column]
     private bool $publishToWebsite;
 
@@ -151,6 +154,42 @@ class Event
     public function location(): ?string
     {
         return $this->location;
+    }
+
+    public function spondEventId(): ?string
+    {
+        return $this->spondEventId;
+    }
+
+    public function attachSpondImport(string $spondEventId): void
+    {
+        $this->spondEventId = $spondEventId;
+    }
+
+    /**
+     * Legt den Spond-Termin als Anlass an oder frischt Titel, Text und den ersten Tag auf.
+     * Status, weitere Tage, Fahrzeuge, Fahrten und Gastronomie bleiben beim erneuten Lesen erhalten.
+     */
+    public function refreshFromSpond(
+        string $title,
+        ?string $publicDescription,
+        ?string $location,
+        \DateTimeImmutable $occursOn,
+        ?\DateTimeImmutable $startsAt,
+        ?\DateTimeImmutable $endsAt,
+        \DateTimeImmutable $now,
+    ): void {
+        $this->title = $title;
+        $this->publicDescription = $publicDescription;
+        $this->location = $location;
+        $this->updatedAt = $now;
+        $day = $this->days()[0] ?? null;
+        if ($day instanceof EventDay) {
+            $day->revisePlan($occursOn, $startsAt, $endsAt, $location, 0);
+
+            return;
+        }
+        $this->addDay($occursOn, $startsAt, $endsAt, $location, 0);
     }
 
     public function publishToWebsite(): bool

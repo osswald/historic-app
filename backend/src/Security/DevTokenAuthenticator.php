@@ -28,7 +28,7 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
         #[Autowire('%env(DEV_USER_GROUPS)%')]
         private string $groups,
         #[Autowire('%env(default::DEV_USER_CLUBS)%')]
-        private string $clubs,
+        private ?string $clubs,
         #[Autowire('%kernel.environment%')]
         private string $environment,
     ) {
@@ -47,7 +47,7 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
     public function authenticate(Request $request): Passport
     {
         $groups = array_values(array_filter(array_map('trim', explode(',', $this->groups))));
-        $clubs = array_values(array_filter(array_map('trim', explode(',', $this->clubs))));
+        $clubs = array_values(array_filter(array_map('trim', explode(',', $this->clubs ?? ''))));
 
         return new SelfValidatingPassport(new UserBadge(self::SUBJECT, fn (): MemberUser => new MemberUser(
             self::SUBJECT,

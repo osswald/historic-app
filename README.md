@@ -34,7 +34,7 @@ Die Backend-Tests legen die Datenbank `app_test` an und lassen die Demo-Datenban
 
 ## Anbindungen
 
-Zugangsdaten für spätere Integrationen stehen in `.local/anbindungen.env`. Eine Kopie ist unnötig, wenn diese Datei schon existiert; die Schlüssel dort ausfüllen. Die Datei wird nicht eingecheckt. Die Vorlage ohne Werte liegt in `infra/anbindungen.env.example`. Die Fahrtenplanung verwendet diese Schlüssel noch nicht.
+Zugangsdaten für spätere Integrationen stehen in `.local/anbindungen.env`. Eine Kopie ist unnötig, wenn diese Datei schon existiert; die Schlüssel dort ausfüllen. Die Datei wird nicht eingecheckt. Die Vorlage ohne Werte liegt in `infra/anbindungen.env.example`. Die Fahrtenplanung verwendet diese Schlüssel noch nicht. `php bin/console app:spond:read` liest `SPOND_USERNAME` und `SPOND_PASSWORD` aus dieser Datei, wenn sie nicht schon in der Umgebung stehen. In Produktion kommen dieselben Namen aus der Umgebung, nicht aus dem Repository. Die Abfrage schreibt nichts nach Spond zurück.
 
 ## Deploy
 

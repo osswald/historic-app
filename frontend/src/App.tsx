@@ -15,6 +15,7 @@ import { LoginPage } from './pages/LoginPage'
 import { PollDetailPage } from './pages/PollDetailPage'
 import { PollEditorPage } from './pages/PollEditorPage'
 import { PollsPage } from './pages/PollsPage'
+import { SpondPage } from './pages/SpondPage'
 import { Shell } from './shell/Shell'
 import { MemberContext, ToastContext } from './shell/context'
 
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: '/umfragen/:id/bearbeiten', element: <PollEditorPage /> },
       { path: '/fahrzeuge', element: <VehiclesPage /> },
       { path: '/gastronomie', element: <GastroPage /> },
+      { path: '/spond', element: <SpondPage /> },
     ],
   },
 ])

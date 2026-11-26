@@ -10,6 +10,8 @@ interface EventRepository
 
     public function byId(string $id): ?Event;
 
+    public function bySpondEventId(string $spondEventId): ?Event;
+
     /** @return list<Event> */
     public function all(): array;
 }

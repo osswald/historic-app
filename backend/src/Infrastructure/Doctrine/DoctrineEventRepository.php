@@ -27,6 +27,11 @@ final class DoctrineEventRepository extends ServiceEntityRepository implements E
         return $this->find($id);
     }
 
+    public function bySpondEventId(string $spondEventId): ?Event
+    {
+        return $this->findOneBy(['spondEventId' => $spondEventId]);
+    }
+
     public function all(): array
     {
         return $this->findBy([], ['createdAt' => 'ASC']);

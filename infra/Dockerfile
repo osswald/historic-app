@@ -11,9 +11,14 @@ FROM dunglas/frankenphp:1-php8.4
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends unzip \
+    && apt-get install -y --no-install-recommends unzip python3 python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && install-php-extensions pdo_pgsql intl opcache zip zip
+
+COPY backend/requirements-spond.txt /tmp/requirements-spond.txt
+RUN python3 -m venv /opt/spond \
+    && /opt/spond/bin/pip install --no-cache-dir -r /tmp/requirements-spond.txt
+ENV SPOND_PYTHON=/opt/spond/bin/python
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 

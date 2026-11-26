@@ -18,6 +18,7 @@ function current(path: string): string {
   if (path.startsWith('/umfragen')) return 'surveys'
   if (path.startsWith('/fahrzeuge')) return 'vehicles'
   if (path.startsWith('/gastronomie')) return 'gastronomy'
+  if (path.startsWith('/spond')) return 'spond'
   return 'dashboard'
 }
 
@@ -36,6 +37,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false)
   const [photoFailed, setPhotoFailed] = useState(false)
   const active = current(location.pathname)
+  const items = member?.canOrganize
+    ? [...ITEMS, { id: 'spond', to: '/spond', label: 'Spond', icon: '↺' }]
+    : ITEMS
   const name = member?.displayName ?? 'Mitglied'
   const picture = member?.picture
   const photoUrl = typeof picture === 'string' && picture.startsWith('https://') && !photoFailed ? picture : null
@@ -79,7 +83,7 @@ export function Shell({ children }: { children: ReactNode }) {
       </header>
       <div className="primary-nav">
         <nav className="nav" aria-label="Hauptnavigation">
-          {ITEMS.map((item) => (
+          {items.map((item) => (
             <button className={active === item.id ? 'selected' : ''} key={item.id} type="button" onClick={() => go(item.to)}>
               <span className="sym">{item.icon}</span>
               {item.label}
@@ -94,13 +98,14 @@ export function Shell({ children }: { children: ReactNode }) {
         <button className={active === 'dashboard' ? 'selected' : ''} type="button" onClick={() => go('/')}><span className="sym">⌂</span>Start</button>
         <button className={active === 'calendar' ? 'selected' : ''} type="button" onClick={() => go('/kalender')}><span className="sym">▦</span>Kalender</button>
         <button className={active === 'surveys' ? 'selected' : ''} type="button" onClick={() => go('/umfragen')}><span className="sym">☷</span>Umfragen</button>
-        <button className={more || ['events', 'vehicles', 'gastronomy'].includes(active) ? 'selected' : ''} type="button" onClick={() => setMore((open) => !open)}><span className="sym">☰</span>Mehr</button>
+        <button className={more || ['events', 'vehicles', 'gastronomy', 'spond'].includes(active) ? 'selected' : ''} type="button" onClick={() => setMore((open) => !open)}><span className="sym">☰</span>Mehr</button>
       </nav>
       {more ? (
         <div className="more-sheet">
           <button className={active === 'events' ? 'selected' : ''} type="button" onClick={() => go('/veranstaltungen')}>Veranstaltungen</button>
           <button className={active === 'vehicles' ? 'selected' : ''} type="button" onClick={() => go('/fahrzeuge')}>Fahrzeuge</button>
           <button className={active === 'gastronomy' ? 'selected' : ''} type="button" onClick={() => go('/gastronomie')}>Gastronomie</button>
+          {member?.canOrganize ? <button className={active === 'spond' ? 'selected' : ''} type="button" onClick={() => go('/spond')}>Spond</button> : null}
         </div>
       ) : null}
     </div>
