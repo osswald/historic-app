@@ -12,8 +12,8 @@ enum Attendance: string
     public function label(): string
     {
         return match ($this) {
-            self::Yes => 'Zugesagt',
-            self::No => 'Nicht dabei',
+            self::Yes => 'Ja',
+            self::No => 'Nein',
         };
     }
 }

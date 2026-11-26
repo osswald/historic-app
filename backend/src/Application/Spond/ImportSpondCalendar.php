@@ -19,31 +19,43 @@ final class ImportSpondCalendar
     /** @param array<string, mixed> $export */
     public function __invoke(array $export, \DateTimeImmutable $now): int
     {
+        return count($this->import($export, $now));
+    }
+
+    /**
+     * @param array<string, mixed> $export
+     * @return list<Event>
+     */
+    public function import(array $export, \DateTimeImmutable $now): array
+    {
         $rows = $export['events'] ?? null;
         if (!is_array($rows)) {
             $one = $export['event'] ?? null;
             $rows = is_array($one) ? [$one] : [];
         }
 
-        $count = 0;
+        $imported = [];
         foreach ($rows as $row) {
-            if (!is_array($row) || !$this->upsert($row, $now)) {
+            if (!is_array($row)) {
                 continue;
             }
-            ++$count;
+            $event = $this->upsert($row, $now);
+            if ($event instanceof Event) {
+                $imported[] = $event;
+            }
         }
 
-        return $count;
+        return $imported;
     }
 
     /** @param array<string, mixed> $row */
-    private function upsert(array $row, \DateTimeImmutable $now): bool
+    private function upsert(array $row, \DateTimeImmutable $now): ?Event
     {
         $spondId = $this->text($row, 'spondId');
         $heading = $this->text($row, 'heading');
         $start = $this->text($row, 'startTimestamp');
         if ($spondId === null || $heading === null || $start === null) {
-            return false;
+            return null;
         }
 
         $when = $this->zurich($start);
@@ -62,7 +74,7 @@ final class ImportSpondCalendar
                 $now,
             );
 
-            return true;
+            return $existing;
         }
 
         $event = new Event(
@@ -70,7 +82,7 @@ final class ImportSpondCalendar
             [Club::Historic->value],
             ['Spond'],
             EventStatus::Published,
-            'Aus Spond übernommen. Die Teilnahme bleibt dort. Fahrt und Gastronomie können hier ergänzt werden.',
+            'Aus Spond übernommen. Die Teilnahme liegt an diesem Anlass. Fahrt und Gastronomie können hier ergänzt werden.',
             $description,
             $location,
             false,
@@ -80,7 +92,7 @@ final class ImportSpondCalendar
         $event->addDay($when, $when, $ends === null ? null : $this->zurich($ends), $location, 0);
         $this->events->add($event);
 
-        return true;
+        return $event;
     }
 
     /** @param array<string, mixed> $row */

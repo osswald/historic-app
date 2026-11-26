@@ -59,7 +59,19 @@ final class Auth0Claims
 
         $clubToken = $id instanceof \stdClass ? $id : $access;
 
-        return new MemberUser($sub, $this->name($access, $id, $sub), $groups, $this->picture($access, $id), $this->clubs($clubToken));
+        return new MemberUser(
+            $sub,
+            $this->name($access, $id, $sub),
+            $groups,
+            $this->picture($access, $id),
+            $this->clubs($clubToken),
+            $this->spondId($clubToken),
+        );
+    }
+
+    private function spondId(\stdClass $token): ?string
+    {
+        return MemberUser::normalizeSpondId($token->{'https://historic-winterthur.ch/spond_id'} ?? null);
     }
 
     /** @return list<string> */

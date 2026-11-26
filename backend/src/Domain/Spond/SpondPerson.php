@@ -27,12 +27,15 @@ class SpondPerson
     #[ORM\Column(length: 190, nullable: true)]
     private ?string $matchedSub;
 
-    public function __construct(SpondRead $read, string $spondId, ?string $matchedSub)
+    private ?string $displayName = null;
+
+    public function __construct(SpondRead $read, string $spondId, ?string $matchedSub, ?string $displayName = null)
     {
         $this->id = Uuid::v7()->toRfc4122();
         $this->read = $read;
         $this->spondId = $spondId;
         $this->matchedSub = $matchedSub;
+        $this->displayName = $displayName;
     }
 
     public function spondId(): string
@@ -43,5 +46,10 @@ class SpondPerson
     public function matchedSub(): ?string
     {
         return $this->matchedSub;
+    }
+
+    public function displayName(): ?string
+    {
+        return isset($this->displayName) ? $this->displayName : null;
     }
 }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Api\V1;
 
+use App\Application\Spond\AttachSpondParticipation;
+use App\Application\Spond\RememberMemberSpondId;
 use App\Security\Auth0\Auth0Login;
 use App\Security\Auth0\Auth0LoginException;
 use App\Security\MemberSession;
@@ -20,6 +22,8 @@ final class AuthController extends AbstractController
     public function __construct(
         private Auth0Login $auth0,
         private MemberSession $sessions,
+        private RememberMemberSpondId $spondIds,
+        private AttachSpondParticipation $participation,
         private TokenStorageInterface $tokens,
         private LoggerInterface $logger,
     ) {
@@ -67,6 +71,8 @@ final class AuthController extends AbstractController
             return $this->home($request, 'fehlgeschlagen');
         }
 
+        ($this->spondIds)($member);
+        ($this->participation)($member);
         $this->sessions->store($request, $member);
 
         return $this->home($request);

@@ -231,3 +231,10 @@ textarea.input { min-height: 110px; font: inherit; }
   .gastro-dish small { display: block; margin-top: 4px; }
   .panel-head .toolbar { width: 100%; }
 }
+
+button.item { width: 100%; background: transparent; border-left: 0; border-right: 0; border-bottom: 0; color: inherit; text-align: left; }
+.events-toolbar .input { flex: 1 1 220px; width: auto; max-width: 355px; }
+.events-toolbar .toggle { margin: 0; flex: 0 0 auto; }
+@media (max-width: 700px) {
+  .events-toolbar .toggle { display: inline-flex; min-height: 44px; align-items: center; }
+}

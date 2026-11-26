@@ -49,6 +49,23 @@ def count_ids(value: object) -> int:
     return len(string_ids(value))
 
 
+def person_name(member: dict) -> str | None:
+    sources = [member]
+    profile = member.get("profile")
+    if isinstance(profile, dict):
+        sources.append(profile)
+    for source in sources:
+        given = text(source.get("firstName"))
+        family = text(source.get("lastName"))
+        full = " ".join(part for part in (given, family) if part)
+        if full:
+            return full
+        named = text(source.get("name"))
+        if named:
+            return named
+    return None
+
+
 def members(group: dict) -> list[dict[str, str]]:
     rows: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -59,7 +76,11 @@ def members(group: dict) -> list[dict[str, str]]:
         if spond_id is None or spond_id in seen:
             continue
         seen.add(spond_id)
-        rows.append({"spondId": spond_id})
+        row = {"spondId": spond_id}
+        name = person_name(member)
+        if name is not None:
+            row["name"] = name
+        rows.append(row)
     return rows
 
 

@@ -31,6 +31,8 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
         private ?string $clubs,
         #[Autowire('%kernel.environment%')]
         private string $environment,
+        #[Autowire('%env(default::DEV_USER_SPOND_ID)%')]
+        private ?string $spondId = null,
     ) {
     }
 
@@ -55,6 +57,7 @@ final class DevTokenAuthenticator extends AbstractAuthenticator
             $groups,
             null,
             $clubs,
+            $this->spondId,
         )));
     }
 

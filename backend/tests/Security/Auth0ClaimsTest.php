@@ -144,6 +144,74 @@ final class Auth0ClaimsTest extends TestCase
         self::assertSame(['historic', 'supporter'], array_map(static fn ($club) => $club->value, $member->clubs()));
     }
 
+    public function testSpondIdComesFromTheIdTokenAndIgnoresTheAccessToken(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'https://historic-winterthur.ch/spond_id' => 'from-access',
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'https://historic-winterthur.ch/spond_id' => ' from-id ',
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame('from-id', $member->spondId());
+    }
+
+    public function testMissingOrEmptySpondIdStaysUnset(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'https://historic-winterthur.ch/spond_id' => 'from-access',
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+        ]);
+
+        self::assertNull($this->member($access, $id)->spondId());
+
+        $blank = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'https://historic-winterthur.ch/spond_id' => '   ',
+        ]);
+        self::assertNull($this->member($access, $blank)->spondId());
+
+        $number = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'https://historic-winterthur.ch/spond_id' => 42,
+        ]);
+        self::assertNull($this->member($access, $number)->spondId());
+    }
+
+    public function testOpaqueLoginReadsTheSpondIdFromTheIdToken(): void
+    {
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'https://historic-winterthur.ch/spond_id' => 'member-1',
+        ]);
+        $claims = $this->claims->decode($id, self::$publicKey, self::ISSUER, self::CLIENT);
+
+        $member = $this->claims->member($claims, null, self::GROUPS);
+
+        self::assertSame('member-1', $member->spondId());
+    }
+
     public function testMissingClubClaimSeesNoClubs(): void
     {
         $access = $this->token([

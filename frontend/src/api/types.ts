@@ -252,11 +252,53 @@ export type ClubEvent = {
   days: EventDay[]
 }
 
+export type TaskProgress = { done: number | null; total: number | null; percent: number | null }
+
+export type TaskItem = {
+  id: string
+  status: string | null
+  statusLabel: string | null
+  addressable: boolean
+}
+
+export type TaskListSummary = {
+  id: string
+  name: string | null
+  progress: TaskProgress | null
+  addressable: boolean
+}
+
+export type TaskListDetail = {
+  id: string | null
+  name: string | null
+  description: string | null
+  categoryId: string | null
+  orgGroupId: string | null
+  isPersonal: boolean | null
+  templateId: string | null
+  progress: TaskProgress | null
+  addressable: boolean
+  tasks: TaskItem[]
+}
+
+export type TaskTemplate = {
+  id: string
+  taskCount: number | null
+  addressable: boolean
+}
+
+export type TasksRead<T> = {
+  configured: boolean
+  missing: string[]
+  notice: string | null
+} & T
+
 export type DashboardData = {
-  counts: { openResponses: number; polls: number; shifts: number; tasks: number }
+  counts: { openResponses: number; polls: number; shifts: number; tasks: number | null }
   upcoming: EventCard[]
   nextSevenDays: Array<{ date: string; weekday: string; day: string; hasEvent: boolean }>
-  tasks: unknown[]
+  tasks: TaskItem[]
+  tasksNotice: string | null
   shifts: unknown[]
   openPoll: { id: string; title: string; prompt: string; state: PollState } | null
 }

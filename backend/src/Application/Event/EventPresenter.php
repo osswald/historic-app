@@ -102,7 +102,10 @@ final class EventPresenter
         $answered = [];
         $responses = [];
         foreach ($day->responses() as $response) {
-            $answered[$response->auth0Sub()] = true;
+            $account = $response->auth0Sub();
+            if ($account !== null) {
+                $answered[$account] = true;
+            }
             if ($response->answer()->value === 'yes') {
                 ++$yes;
             } else {

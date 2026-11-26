@@ -12,6 +12,8 @@ final class MemberUser implements UserInterface
     /** @var list<string> */
     private array $clubs;
 
+    private ?string $spondId;
+
     /**
      * @param list<string> $groups
      * @param list<string> $clubs
@@ -22,9 +24,11 @@ final class MemberUser implements UserInterface
         private array $groups,
         private ?string $picture = null,
         array $clubs = [],
+        ?string $spondId = null,
     ) {
         $this->picture = self::normalizePicture($picture);
         $this->clubs = self::normalizeClubs($clubs);
+        $this->spondId = self::normalizeSpondId($spondId);
     }
 
     public function getUserIdentifier(): string
@@ -46,6 +50,11 @@ final class MemberUser implements UserInterface
     public function picture(): ?string
     {
         return $this->picture;
+    }
+
+    public function spondId(): ?string
+    {
+        return $this->spondId;
     }
 
     /** @return list<Club> */
@@ -114,6 +123,19 @@ final class MemberUser implements UserInterface
         }
 
         return $picture;
+    }
+
+    public static function normalizeSpondId(mixed $spondId): ?string
+    {
+        if (!is_string($spondId)) {
+            return null;
+        }
+        $spondId = trim($spondId);
+        if ($spondId === '' || mb_strlen($spondId) > 80) {
+            return null;
+        }
+
+        return $spondId;
     }
 
     public function getRoles(): array

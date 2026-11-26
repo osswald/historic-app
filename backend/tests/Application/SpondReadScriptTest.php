@@ -16,7 +16,8 @@ final class SpondReadScriptTest extends TestCase
         self::assertSame(1, preg_match('/get_events\s*\(/', $source));
         self::assertSame(1, preg_match('/(?<!get_)get_event\s*\(/', $source));
         self::assertSame(0, preg_match('/\b(change_response|update_event|send_message|get_person)\s*\(/', $source));
-        self::assertSame(0, preg_match('/\b(email|firstName|lastName|phoneNumber)\b/', $source));
+        self::assertSame(0, preg_match('/\b(email|phoneNumber)\b/', $source));
+        self::assertSame(1, preg_match('/\bfirstName\b/', $source));
         self::assertMatchesRegularExpression('/MAX_EVENTS\s*=\s*500/', $source);
         self::assertMatchesRegularExpression('/min_start\s*=\s*min_start/', $source);
         self::assertMatchesRegularExpression('/max_start\s*=\s*max_start/', $source);

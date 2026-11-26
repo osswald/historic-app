@@ -75,7 +75,8 @@ final class SpondExportParser
             return [$left['heading'], $left['spondId']] <=> [$right['heading'], $right['spondId']];
         });
 
-        $memberIds = $this->memberIds($group);
+        $members = $this->members($group);
+        $memberIds = array_map(static fn (array $member): string => $member['spondId'], $members);
         $exportIds = $memberIds;
         foreach ($parsedEvents as $event) {
             foreach ($event['answers'] as $answer) {
@@ -85,8 +86,8 @@ final class SpondExportParser
         $matched = $this->matcher->match($exportIds, $accounts);
 
         $read = new SpondRead($groupName, $groupId, $readAt);
-        foreach ($memberIds as $spondId) {
-            $read->addPerson($spondId, $matched[$spondId] ?? null);
+        foreach ($members as $member) {
+            $read->addPerson($member['spondId'], $matched[$member['spondId']] ?? null, $member['name']);
         }
         foreach ($parsedEvents as $event) {
             $stored = $read->addEvent(
@@ -127,15 +128,15 @@ final class SpondExportParser
     }
 
     /** @param array<string, mixed> $group
-     *  @return list<string>
+     *  @return list<array{spondId: string, name: ?string}>
      */
-    private function memberIds(array $group): array
+    private function members(array $group): array
     {
         $members = $group['members'] ?? null;
         if (!is_array($members)) {
             throw new SpondExportException('Die Gruppe enthält keine Mitgliederliste.');
         }
-        $ids = [];
+        $rows = [];
         $seen = [];
         foreach ($members as $member) {
             if (!is_array($member)) {
@@ -146,10 +147,10 @@ final class SpondExportParser
                 continue;
             }
             $seen[$id] = true;
-            $ids[] = $id;
+            $rows[] = ['spondId' => $id, 'name' => $this->text($member, 'name')];
         }
 
-        return $ids;
+        return $rows;
     }
 
     /** @param array<string, mixed> $event

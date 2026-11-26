@@ -55,6 +55,10 @@ final class MemberSession
         if ($picture !== null) {
             $payload['picture'] = $picture;
         }
+        $spondId = $user->spondId();
+        if ($spondId !== null) {
+            $payload['spondId'] = $spondId;
+        }
         $session->set(self::KEY, $payload);
     }
 
@@ -110,6 +114,15 @@ final class MemberSession
             }
         }
 
-        return new MemberUser($sub, $name, $names, MemberUser::normalizePicture($payload['picture'] ?? null), $clubs);
+        $spondId = $payload['spondId'] ?? null;
+
+        return new MemberUser(
+            $sub,
+            $name,
+            $names,
+            MemberUser::normalizePicture($payload['picture'] ?? null),
+            $clubs,
+            is_string($spondId) ? $spondId : null,
+        );
     }
 }

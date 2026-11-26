@@ -152,24 +152,171 @@ class EventDay
         return null;
     }
 
+    public function responseForSpond(string $spondMemberId): ?EventResponse
+    {
+        foreach ($this->responses as $response) {
+            if ($response->spondMemberId() === $spondMemberId) {
+                return $response;
+            }
+        }
+
+        return null;
+    }
+
+    public function removeResponse(EventResponse $response): void
+    {
+        $this->responses->removeElement($response);
+    }
+
     /** @return list<EventResponse> */
     public function responses(): array
     {
         return array_values($this->responses->toArray());
     }
 
-    public function answer(string $sub, string $name, Attendance $answer, ?string $comment, \DateTimeImmutable $at): EventResponse
+    public function answer(string $sub, string $name, Attendance $answer, ?string $comment, \DateTimeImmutable $at, ?string $spondMemberId = null): EventResponse
     {
         $existing = $this->responseFor($sub);
+        if (!$existing instanceof EventResponse && $spondMemberId !== null && $spondMemberId !== '') {
+            $existing = $this->responseForSpond($spondMemberId);
+        }
         if ($existing instanceof EventResponse) {
+            $existing->attachAccount($sub);
+            if ($spondMemberId !== null) {
+                $existing->rememberSpondMember($spondMemberId);
+            }
             $existing->revise($answer, $comment, $name, $at);
+            $existing->markEditedInApp();
 
             return $existing;
         }
 
-        $response = new EventResponse($this, $sub, $name, $answer, $comment, $at);
+        $response = new EventResponse($this, $sub, $name, $answer, $comment, $at, $spondMemberId, true);
         $this->responses->add($response);
 
         return $response;
+    }
+
+    /**
+     * Übernimmt eine Spond-Antwort auf diesen Tag.
+     * Der Abschluss setzt die Spond-ID erst, nachdem eine ersetzte Zeile gelöscht werden kann.
+     *
+     * @return \Closure(): void
+     */
+    public function importSpondReply(
+        string $spondMemberId,
+        ?string $auth0Sub,
+        ?string $name,
+        ?Attendance $attendance,
+        ?string $comment,
+        \DateTimeImmutable $at,
+    ): \Closure {
+        $bySpond = $this->responseForSpond($spondMemberId);
+        $bySub = $auth0Sub !== null && $auth0Sub !== '' ? $this->responseFor($auth0Sub) : null;
+
+        if (!$attendance instanceof Attendance) {
+            if ($bySpond instanceof EventResponse && !$bySpond->editedInApp()) {
+                $this->discard($bySpond);
+            }
+
+            return static function (): void {
+            };
+        }
+
+        $drop = null;
+        $keeper = $bySpond ?? $bySub;
+        if ($bySpond instanceof EventResponse && $bySub instanceof EventResponse && $bySpond !== $bySub) {
+            if ($bySub->editedInApp()) {
+                $keeper = $bySub;
+                $drop = $bySpond;
+            } else {
+                $keeper = $bySpond;
+                $drop = $bySub;
+            }
+            $this->discard($drop);
+        }
+
+        $deferIdentity = $drop instanceof EventResponse;
+        if (!$keeper instanceof EventResponse) {
+            $keeper = new EventResponse(
+                $this,
+                $auth0Sub !== '' ? $auth0Sub : null,
+                $name ?? 'Mitglied',
+                $attendance,
+                $comment,
+                $at,
+                $spondMemberId,
+                false,
+            );
+            $this->responses->add($keeper);
+        } elseif (!$keeper->editedInApp()) {
+            $keeper->refreshImported($attendance, $comment, $name, $at);
+        }
+
+        if (!$deferIdentity) {
+            $keeper->rememberSpondMember($spondMemberId);
+            $keeper->attachAccount($auth0Sub);
+        }
+
+        return static function () use ($keeper, $spondMemberId, $auth0Sub): void {
+            $keeper->rememberSpondMember($spondMemberId);
+            $keeper->attachAccount($auth0Sub);
+        };
+    }
+
+    /**
+     * @return \Closure(): void
+     */
+    public function linkSpondAccount(string $spondMemberId, string $sub): \Closure
+    {
+        $imported = $this->responseForSpond($spondMemberId);
+        if (!$imported instanceof EventResponse) {
+            return static function (): void {
+            };
+        }
+        $local = $this->responseFor($sub);
+        if (!$local instanceof EventResponse || $local === $imported) {
+            $imported->attachAccount($sub);
+
+            return static function () use ($imported, $sub): void {
+                $imported->attachAccount($sub);
+            };
+        }
+        if ($local->editedInApp() || !$imported->editedInApp()) {
+            $this->discard($imported);
+
+            return static function () use ($local, $spondMemberId, $sub): void {
+                $local->rememberSpondMember($spondMemberId);
+                $local->attachAccount($sub);
+            };
+        }
+        $this->discard($local);
+
+        return static function () use ($imported, $spondMemberId, $sub): void {
+            $imported->rememberSpondMember($spondMemberId);
+            $imported->attachAccount($sub);
+        };
+    }
+
+    /**
+     * Entfernt die andere Spond-Zeile, bevor das Konto dieselbe ID übernimmt.
+     */
+    public function releaseOtherSpondRow(string $sub, string $spondMemberId): bool
+    {
+        $bySub = $this->responseFor($sub);
+        $bySpond = $this->responseForSpond($spondMemberId);
+        if (!$bySub instanceof EventResponse || !$bySpond instanceof EventResponse || $bySub === $bySpond) {
+            return false;
+        }
+        $this->discard($bySpond);
+
+        return true;
+    }
+
+    private function discard(EventResponse $response): void
+    {
+        $response->releaseSpondMemberId();
+        $response->detachAccount();
+        $this->responses->removeElement($response);
     }
 }

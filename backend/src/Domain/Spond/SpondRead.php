@@ -65,9 +65,9 @@ class SpondRead
         return $this->readAt;
     }
 
-    public function addPerson(string $spondId, ?string $matchedSub): void
+    public function addPerson(string $spondId, ?string $matchedSub, ?string $displayName = null): void
     {
-        $this->people->add(new SpondPerson($this, $spondId, $matchedSub));
+        $this->people->add(new SpondPerson($this, $spondId, $matchedSub, $displayName));
     }
 
     /**

@@ -62,7 +62,11 @@ final class KnownPeople
             }
             foreach ($event->days() as $day) {
                 foreach ($day->responses() as $response) {
-                    $people[$response->auth0Sub()] = $response->respondentName();
+                    $account = $response->auth0Sub();
+                    if ($account === null) {
+                        continue;
+                    }
+                    $people[$account] = $response->respondentName();
                 }
             }
         }

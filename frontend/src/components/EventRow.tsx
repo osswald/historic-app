@@ -9,7 +9,7 @@ export function responsePill(card: Pick<EventCard, 'status' | 'response' | 'resp
     return { className: 'pill gray', label: card.statusLabel }
   }
   if (card.response === 'yes') {
-    return { className: 'pill green', label: '✓ Zugesagt' }
+    return { className: 'pill green', label: card.responseLabel }
   }
   if (card.response === 'no') {
     return { className: 'pill gray', label: card.responseLabel }

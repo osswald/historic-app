@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Application\Spond\ImportSpondAttendance;
 use App\Application\Spond\ImportSpondCalendar;
 use App\Application\Spond\RecordSpondRead;
 use App\Application\Spond\SpondCredentials;
@@ -23,6 +24,7 @@ final class ReadSpondCommand extends Command
         private SpondCredentials $credentials,
         private RecordSpondRead $record,
         private ImportSpondCalendar $calendar,
+        private ImportSpondAttendance $attendance,
         private EntityManagerInterface $entityManager,
         #[Autowire('%kernel.project_dir%')]
         private string $projectDir,
@@ -70,9 +72,16 @@ final class ReadSpondCommand extends Command
         }
 
         try {
+            $now = new \DateTimeImmutable('now', new \DateTimeZone('Europe/Zurich'));
             $read = ($this->record)($export);
-            $imported = ($this->calendar)($export, new \DateTimeImmutable('now', new \DateTimeZone('Europe/Zurich')));
+            $events = $this->calendar->import($export, $now);
+            $finish = ($this->attendance)($read, $events, $now);
             $this->entityManager->flush();
+            foreach ($finish as $apply) {
+                $apply();
+            }
+            $this->entityManager->flush();
+            $imported = count($events);
         } catch (SpondExportException $exception) {
             $output->writeln($this->redact($exception->getMessage(), $secrets));
 

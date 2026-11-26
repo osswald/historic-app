@@ -70,6 +70,7 @@ final class MemberSessionAuthenticatorTest extends TestCase
         $user = $store->read($request);
         self::assertInstanceOf(MemberUser::class, $user);
         self::assertSame('https://cdn.example.test/vera.jpg', $user->picture());
+        self::assertNull($user->spondId());
 
         $request->getSession()->set(MemberSession::KEY, [
             'sub' => 'auth0|1',
@@ -80,6 +81,32 @@ final class MemberSessionAuthenticatorTest extends TestCase
         $user = $store->read($request);
         self::assertInstanceOf(MemberUser::class, $user);
         self::assertNull($user->picture());
+    }
+
+    public function testSessionKeepsTheSpondIdAndDropsAnEmptyOne(): void
+    {
+        $session = new Session(new MockArraySessionStorage());
+        $session->start();
+        $request = Request::create('/api/v1/auth/callback');
+        $request->setSession($session);
+        $store = new MemberSession('historic_session');
+        $store->store($request, new MemberUser('auth0|1', 'Vera Verein', ['Mitglieder'], null, ['historic'], ' member-1 '));
+        $saved = $request->getSession()->get(MemberSession::KEY);
+        self::assertIsArray($saved);
+        self::assertSame('member-1', $saved['spondId']);
+
+        $request->cookies->set('historic_session', $request->getSession()->getId());
+        $user = $store->read($request);
+        self::assertInstanceOf(MemberUser::class, $user);
+        self::assertSame('member-1', $user->spondId());
+
+        $store->store($request, new MemberUser('auth0|1', 'Vera Verein', ['Mitglieder'], null, ['historic'], '   '));
+        $saved = $request->getSession()->get(MemberSession::KEY);
+        self::assertIsArray($saved);
+        self::assertArrayNotHasKey('spondId', $saved);
+        $cleared = $store->read($request);
+        self::assertInstanceOf(MemberUser::class, $cleared);
+        self::assertNull($cleared->spondId());
     }
 
     public function testBrokenSessionPayloadIsDropped(): void

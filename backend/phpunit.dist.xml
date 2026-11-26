@@ -34,6 +34,12 @@
         <env name="AUTH0_AUDIENCE" value="" force="true" />
         <server name="AUTH0_GROUPS_CLAIM" value="https://historic-winterthur.ch/groups" force="true" />
         <env name="AUTH0_GROUPS_CLAIM" value="https://historic-winterthur.ch/groups" force="true" />
+        <server name="TASKS_API_BASE" value="" force="true" />
+        <env name="TASKS_API_BASE" value="" force="true" />
+        <server name="TASKS_API_TOKEN" value="" force="true" />
+        <env name="TASKS_API_TOKEN" value="" force="true" />
+        <server name="TASKS_API_KEY" value="" force="true" />
+        <env name="TASKS_API_KEY" value="" force="true" />
     </php>
 
     <testsuites>

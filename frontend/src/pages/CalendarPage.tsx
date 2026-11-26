@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent } from '../api/types'
+import { responsePill } from '../components/EventRow'
 import { useMember } from '../shell/context'
 
 type Mode = 'month' | 'week' | 'list'
@@ -162,6 +163,13 @@ function Week({ events, cursor }: { events: ClubEvent[]; cursor: Date }) {
   )
 }
 
+function listPill(event: ClubEvent): { className: string; label: string } {
+  if (event.card && (event.card.response === 'yes' || event.card.response === 'no')) {
+    return responsePill(event.card)
+  }
+  return { className: 'pill gray', label: event.statusLabel }
+}
+
 function List({ events, year, month }: { events: ClubEvent[]; year: number; month: number }) {
   const rows = events.filter((event) => event.days.some((day) => {
     const date = new Date(day.date)
@@ -170,15 +178,18 @@ function List({ events, year, month }: { events: ClubEvent[]; year: number; mont
   if (rows.length === 0) return <p className="empty">In diesem Monat liegt keine Veranstaltung.</p>
   return (
     <div>
-      {rows.map((event) => (
-        <div className="eventrow" key={event.id}>
-          <div className="eventcopy">
-            <h3><Link to={`/veranstaltungen/${event.id}`}>{event.title}</Link></h3>
-            <div className="eventmeta">{event.card?.line1}</div>
+      {rows.map((event) => {
+        const pill = listPill(event)
+        return (
+          <div className="eventrow" key={event.id}>
+            <div className="eventcopy">
+              <h3><Link to={`/veranstaltungen/${event.id}`}>{event.title}</Link></h3>
+              <div className="eventmeta">{event.card?.line1}</div>
+            </div>
+            <span className={pill.className}>{pill.label}</span>
           </div>
-          <span className="pill gray">{event.statusLabel}</span>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

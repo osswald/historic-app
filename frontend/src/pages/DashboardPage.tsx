@@ -88,8 +88,23 @@ export function DashboardPage() {
         </div>
         <div className="stack">
           <div className="panel">
-            <div className="panel-head"><h2>Meine Aufgaben</h2></div>
-            <p className="empty">Eigene Aufgaben erscheinen hier, sobald die Aufgaben-App verknüpft ist. Der Status bleibt dort führend.</p>
+            <div className="panel-head">
+              <h2>Meine Aufgaben</h2>
+              <Link className="a" to="/aufgaben">Aufgaben öffnen ›</Link>
+            </div>
+            {data?.tasksNotice ? <p className="empty">{data.tasksNotice}</p> : null}
+            {!data?.tasksNotice && data && data.tasks.length === 0 ? <p className="empty">Keine eigenen Aufgaben.</p> : null}
+            <div className="simplelist">
+              {(data?.tasks ?? []).map((task) => (
+                <div className="item" key={task.id}>
+                  <div className={task.status === 'done' ? 'check checked' : 'check'}>{task.status === 'done' ? '✓' : ''}</div>
+                  <div>
+                    <b>{task.id}</b>
+                    <small>{task.statusLabel ?? task.status ?? 'Ohne Status'}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="panel">
             <div className="panel-head"><h2>Meine Helferschichten</h2></div>

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Application;
 
+use App\Application\Spond\LinkedSpondAccountDirectory;
 use App\Application\Spond\SpondExportParser;
 use App\Application\Spond\SpondIdMatcher;
 use App\Application\Spond\SpondResponseMap;
+use App\Domain\Account\MemberLinkRepository;
 use App\Domain\Spond\SpondReply;
 use PHPUnit\Framework\TestCase;
 
@@ -32,6 +34,24 @@ final class SpondIdMatcherTest extends TestCase
         self::assertNull($this->matcher->spondId(['other' => ['spond_id' => 'spond-a']]));
     }
 
+    public function testOneStoredSpondIdMatchesThatAccount(): void
+    {
+        $directory = new LinkedSpondAccountDirectory(new class implements MemberLinkRepository {
+            public function remember(string $sub, ?string $spondId): void
+            {
+            }
+
+            public function linked(): array
+            {
+                return [['sub' => 'auth0|one', 'spondId' => 'member-1']];
+            }
+        });
+
+        $matched = $this->matcher->match(['member-1'], $directory->known());
+
+        self::assertSame(['member-1' => 'auth0|one'], $matched);
+    }
+
     public function testIgnoresAccountsThatAreNotInTheExport(): void
     {
         $matched = $this->matcher->match(['spond-a', 'spond-b'], [
@@ -51,7 +71,7 @@ final class SpondIdMatcherTest extends TestCase
                 'spondId' => 'group-1',
                 'name' => 'Historic Team Winterthur',
                 'members' => [
-                    ['spondId' => 'spond-a'],
+                    ['spondId' => 'spond-a', 'name' => 'Vera Beispiel'],
                     ['spondId' => 'spond-b'],
                     ['spondId' => 'spond-a'],
                 ],
@@ -86,6 +106,7 @@ final class SpondIdMatcherTest extends TestCase
         self::assertSame('2026-11-14', $event->eventOn()->format('Y-m-d'));
         self::assertSame(['spond-a', 'spond-b'], array_map(static fn ($person) => $person->spondId(), $read->people()));
         self::assertSame('auth0|vera', $read->people()[0]->matchedSub());
+        self::assertSame('Vera Beispiel', $read->people()[0]->displayName());
         self::assertNull($read->people()[1]->matchedSub());
         self::assertSame([
             ['spond-a', SpondReply::Accepted, null, 'auth0|vera'],

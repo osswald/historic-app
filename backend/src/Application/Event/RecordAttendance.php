@@ -38,9 +38,17 @@ final class RecordAttendance
 
         $comment = trim((string) $comment);
         $comment = $comment === '' ? null : mb_substr($comment, 0, 2000);
-        $before = $day->responseFor($actor->getUserIdentifier())?->toAudit();
+        $sub = $actor->getUserIdentifier();
+        $spondId = $actor->spondId();
+        if ($spondId !== null && $day->releaseOtherSpondRow($sub, $spondId)) {
+            $this->entityManager->flush();
+        }
+        $before = $day->responseFor($sub)?->toAudit();
+        if ($before === null && $spondId !== null) {
+            $before = $day->responseForSpond($spondId)?->toAudit();
+        }
         $now = $this->clock->now();
-        $response = $day->answer($actor->getUserIdentifier(), $actor->displayName(), $attendance, $comment, $now);
+        $response = $day->answer($sub, $actor->displayName(), $attendance, $comment, $now, $spondId);
         if ($before === $response->toAudit()) {
             return;
         }

@@ -4,6 +4,7 @@ import { NavigationGuard } from './forms/unsaved'
 import { api, ApiError } from './api/client'
 import type { Member } from './api/types'
 import { sessionToken } from './auth/session'
+import { AufgabenPage } from './pages/AufgabenPage'
 import { CalendarPage } from './pages/CalendarPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { EventDetailPage } from './pages/EventDetailPage'
@@ -35,6 +36,7 @@ const router = createBrowserRouter([
       { path: '/umfragen/:id/bearbeiten', element: <PollEditorPage /> },
       { path: '/fahrzeuge', element: <VehiclesPage /> },
       { path: '/gastronomie', element: <GastroPage /> },
+      { path: '/aufgaben', element: <AufgabenPage /> },
       { path: '/spond', element: <SpondPage /> },
     ],
   },

@@ -8,6 +8,7 @@ use App\Application\Event\EventCatalog;
 use App\Application\Event\EventPresenter;
 use App\Application\Poll\PollCatalog;
 use App\Application\Poll\PollPresenter;
+use App\Application\Tasks\ShowTasks;
 use App\Application\ZurichClock;
 use App\Security\MemberUser;
 
@@ -19,6 +20,7 @@ final class BuildDashboard
         private PollCatalog $polls,
         private PollPresenter $pollPresenter,
         private ZurichClock $clock,
+        private ShowTasks $tasks,
     ) {
     }
 
@@ -80,17 +82,20 @@ final class BuildDashboard
             }
         }
         $featured ??= $answerable[0] ?? null;
+        $ownTasks = $this->tasks->tasks($user, null);
+        $taskRows = is_array($ownTasks['tasks'] ?? null) ? $ownTasks['tasks'] : [];
 
         return [
             'counts' => [
                 'openResponses' => $open,
                 'polls' => $pending,
                 'shifts' => 0,
-                'tasks' => 0,
+                'tasks' => ($ownTasks['configured'] ?? false) === true && ($ownTasks['notice'] ?? null) === null ? count($taskRows) : null,
             ],
             'upcoming' => $cards,
             'nextSevenDays' => $week,
-            'tasks' => [],
+            'tasks' => $taskRows,
+            'tasksNotice' => $ownTasks['notice'] ?? null,
             'shifts' => [],
             'openPoll' => $featured instanceof \App\Domain\Poll\Poll ? $this->pollPresenter->spotlight($featured, $user) : null,
         ];
