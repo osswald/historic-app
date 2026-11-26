@@ -163,6 +163,25 @@ class EventDay
         return null;
     }
 
+    /**
+     * Die eigene Zeile. Eine Änderung in dieser App hat Vorrang.
+     * Sonst gilt die importierte Spond-Zeile, auch wenn das Konto noch nicht daran hängt.
+     */
+    public function responseForMember(string $sub, ?string $spondMemberId): ?EventResponse
+    {
+        if ($sub !== '') {
+            $own = $this->responseFor($sub);
+            if ($own instanceof EventResponse) {
+                return $own;
+            }
+        }
+        if ($spondMemberId === null || $spondMemberId === '') {
+            return null;
+        }
+
+        return $this->responseForSpond($spondMemberId);
+    }
+
     public function removeResponse(EventResponse $response): void
     {
         $this->responses->removeElement($response);

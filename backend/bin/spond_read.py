@@ -9,7 +9,12 @@ import os
 import sys
 from datetime import datetime, timedelta, timezone
 
+import aiohttp
 from spond import spond
+
+# The library session used aiohttp's five-minute total cap. One slow call, or the
+# run of about 350 event details, died there. sock_read still stops a stalled socket.
+READ_TIMEOUT = aiohttp.ClientTimeout(total=3600, sock_connect=60, sock_read=120)
 
 GROUP_NAME = "Historic Team Winterthur"
 MAX_EVENTS = 500
@@ -245,6 +250,9 @@ async def read_window(client: spond.Spond, group_id: str, min_start: datetime, m
 
 async def read_export(username: str, password: str) -> dict:
     client = spond.Spond(username=username, password=password)
+    stale = client.clientsession
+    client.clientsession = aiohttp.ClientSession(cookie_jar=aiohttp.CookieJar(), timeout=READ_TIMEOUT)
+    await stale.close()
     try:
         groups = await client.get_groups() or []
         group = next(

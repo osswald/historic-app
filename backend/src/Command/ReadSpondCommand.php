@@ -169,7 +169,8 @@ final class ReadSpondCommand extends Command
         stream_set_blocking($pipes[2], false);
         $stdout = '';
         $stderr = '';
-        $deadline = microtime(true) + 600;
+        // Etwa 350 Termine werden einzeln gelesen. Zehn Minuten brechen den Lauf ab.
+        $deadline = microtime(true) + 3600;
         $status = ['running' => true];
         while (microtime(true) < $deadline) {
             $stdout .= (string) stream_get_contents($pipes[1]);

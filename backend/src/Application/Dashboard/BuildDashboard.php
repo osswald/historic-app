@@ -37,7 +37,7 @@ final class BuildDashboard
                 if ($day->occursOn()->format('Y-m-d') < $today->format('Y-m-d')) {
                     continue;
                 }
-                if ($day->responseFor($user->getUserIdentifier()) === null) {
+                if ($day->responseForMember($user->getUserIdentifier(), $user->spondId()) === null) {
                     $needsAnswer = true;
                 }
             }

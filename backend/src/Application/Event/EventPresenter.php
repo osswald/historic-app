@@ -76,7 +76,7 @@ final class EventPresenter
     /** @return array<string, mixed> */
     private function cardFromDay(Event $event, EventDay $day, MemberUser $user, \DateTimeImmutable $today): array
     {
-        $response = $day->responseFor($user->getUserIdentifier());
+        $response = $day->responseForMember($user->getUserIdentifier(), $user->spondId());
 
         return [
             'id' => $event->id(),
@@ -96,7 +96,7 @@ final class EventPresenter
     /** @return array<string, mixed> */
     private function day(EventDay $day, MemberUser $user, \DateTimeImmutable $today): array
     {
-        $mine = $day->responseFor($user->getUserIdentifier());
+        $mine = $day->responseForMember($user->getUserIdentifier(), $user->spondId());
         $yes = 0;
         $no = 0;
         $answered = [];

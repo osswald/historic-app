@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Application;
 
+use App\Application\Event\EventPresenter;
 use App\Application\Spond\AttachSpondParticipation;
 use App\Application\Spond\ImportSpondAttendance;
 use App\Application\Spond\ImportSpondCalendar;
@@ -152,6 +153,49 @@ final class SpondOwnAnswerTest extends TestCase
         self::assertSame('Nein', $row->answer()->label());
         self::assertSame('Bea Beispiel', $row->respondentName());
         self::assertFalse($row->editedInApp());
+    }
+
+    public function testTheOwnPillUsesTheSpondIdWhenTheRowIsNotLinkedToTheAccount(): void
+    {
+        $events = new AttendanceEventRepository();
+        $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
+        $imported = (new ImportSpondCalendar($events))->import($this->payload('Führung'), $now);
+        $this->apply(new ImportSpondAttendance(), $this->read(SpondReply::Accepted, 'Ada Beispiel', 'Bea Beispiel'), $imported, $now);
+        $event = $events->bySpondEventId('spond-1');
+        self::assertInstanceOf(Event::class, $event);
+        $today = new \DateTimeImmutable('2026-11-26');
+        $presenter = new EventPresenter();
+
+        $linkedBySpond = new MemberUser('auth0|bea', 'Bea aus Auth0', ['Mitglieder'], null, ['historic'], 'member-2');
+        $card = $presenter->card($event, $linkedBySpond, $today);
+        self::assertSame('no', $card['response']);
+        self::assertSame('Nein', $card['responseLabel']);
+        $detail = $presenter->detail($event, $linkedBySpond);
+        self::assertSame('no', $detail['days'][0]['myResponse']);
+
+        $withoutSpondId = new MemberUser('auth0|bea', 'Bea aus Auth0', ['Mitglieder'], null, ['historic']);
+        $open = $presenter->card($event, $withoutSpondId, $today);
+        self::assertNull($open['response']);
+        self::assertSame('Antwort offen', $open['responseLabel']);
+    }
+
+    public function testAnAnswerEditedInTheAppStaysAheadOfTheImportedSpondRow(): void
+    {
+        $events = new AttendanceEventRepository();
+        $now = new \DateTimeImmutable('2026-11-26T08:00:00+01:00');
+        $imported = (new ImportSpondCalendar($events))->import($this->payload('Führung'), $now);
+        $this->apply(new ImportSpondAttendance(), $this->read(SpondReply::Accepted, 'Ada Beispiel', 'Bea Beispiel'), $imported, $now);
+        $event = $events->bySpondEventId('spond-1');
+        self::assertInstanceOf(Event::class, $event);
+        $event->days()[0]->answer('auth0|bea', 'Bea aus der App', Attendance::Yes, 'Doch dabei', $now);
+
+        $card = (new EventPresenter())->card(
+            $event,
+            new MemberUser('auth0|bea', 'Bea aus der App', ['Mitglieder'], null, ['historic'], 'member-2'),
+            new \DateTimeImmutable('2026-11-26'),
+        );
+        self::assertSame('yes', $card['response']);
+        self::assertSame('Ja', $card['responseLabel']);
     }
 
     /** @param list<Event> $events */

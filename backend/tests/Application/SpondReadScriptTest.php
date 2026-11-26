@@ -24,5 +24,11 @@ final class SpondReadScriptTest extends TestCase
         self::assertStringContainsString('2000, 1, 1', $source);
         self::assertStringContainsString('2045, 12, 31', $source);
         self::assertStringNotContainsString('Führung inbahn', $source);
+        self::assertMatchesRegularExpression('/ClientTimeout\(\s*total=3600/', $source);
+        self::assertStringNotContainsString('total=300', $source);
+        $command = file_get_contents(dirname(__DIR__, 2).'/src/Command/ReadSpondCommand.php');
+        self::assertIsString($command);
+        self::assertStringContainsString('microtime(true) + 3600', $command);
+        self::assertStringNotContainsString('microtime(true) + 600', $command);
     }
 }

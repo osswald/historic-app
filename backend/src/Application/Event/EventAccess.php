@@ -49,6 +49,6 @@ final class EventAccess
             return false;
         }
 
-        return $event->isUpcoming($today) || $event->answeredBy($user->getUserIdentifier());
+        return $event->isUpcoming($today) || $event->answeredBy($user->getUserIdentifier(), $user->spondId());
     }
 }

@@ -293,10 +293,10 @@ class Event
         return false;
     }
 
-    public function answeredBy(string $sub): bool
+    public function answeredBy(string $sub, ?string $spondMemberId = null): bool
     {
         foreach ($this->days() as $day) {
-            if ($day->responseFor($sub) !== null) {
+            if ($day->responseForMember($sub, $spondMemberId) !== null) {
                 return true;
             }
         }
