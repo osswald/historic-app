@@ -69,29 +69,31 @@ export function Shell({ children }: { children: ReactNode }) {
 
   return (
     <div className="app">
-      <header className="top">
-        <div className="brand">
-          <div className="brand-logo">
-            <img src="/club-logo.png" alt="Historic Team Winterthur" />
+      <div className="app-chrome">
+        <header className="top">
+          <div className="brand">
+            <div className="brand-logo">
+              <img src="/club-logo.png" alt="Historic Team Winterthur" />
+            </div>
           </div>
-        </div>
-        <div className="top-actions">
-          <a className="public-link" href="https://new.historic-winterthur.ch/" rel="noopener noreferrer" target="_blank">Zur öffentlichen Website ↗</a>
-          <button className="ghost desktop-only" type="button" onClick={() => toast('Benachrichtigungen folgen mit der E-Mail- und Push-Anbindung.')}>♧ Benachrichtigungen</button>
-          <button aria-label="Abmelden" className={photoUrl ? 'avatar has-photo' : 'avatar'} title={name} type="button" onClick={logout}>
-            {photoUrl ? <img alt={name} src={photoUrl} onError={() => setPhotoFailed(true)} /> : initials(name)}
-          </button>
-        </div>
-      </header>
-      <div className="primary-nav">
-        <nav className="nav" aria-label="Hauptnavigation">
-          {items.map((item) => (
-            <button className={active === item.id ? 'selected' : ''} key={item.id} type="button" onClick={() => go(item.to)}>
-              <span className="sym">{item.icon}</span>
-              {item.label}
+          <div className="top-actions">
+            <a className="public-link" href="https://new.historic-winterthur.ch/" rel="noopener noreferrer" target="_blank">Zur öffentlichen Website ↗</a>
+            <button className="ghost desktop-only" type="button" onClick={() => toast('Benachrichtigungen folgen mit der E-Mail- und Push-Anbindung.')}>♧ Benachrichtigungen</button>
+            <button aria-label="Abmelden" className={photoUrl ? 'avatar has-photo' : 'avatar'} title={name} type="button" onClick={logout}>
+              {photoUrl ? <img alt={name} src={photoUrl} onError={() => setPhotoFailed(true)} /> : initials(name)}
             </button>
-          ))}
-        </nav>
+          </div>
+        </header>
+        <div className="primary-nav">
+          <nav className="nav" aria-label="Hauptnavigation">
+            {items.map((item) => (
+              <button className={active === item.id ? 'selected' : ''} key={item.id} type="button" onClick={() => go(item.to)}>
+                <span className="sym">{item.icon}</span>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </div>
       </div>
       <div className="wrap">
         <main>{children}</main>

@@ -59,6 +59,10 @@ final class MemberSession
         if ($spondId !== null) {
             $payload['spondId'] = $spondId;
         }
+        $email = $user->email();
+        if ($email !== null) {
+            $payload['email'] = $email;
+        }
         $session->set(self::KEY, $payload);
     }
 
@@ -115,6 +119,7 @@ final class MemberSession
         }
 
         $spondId = $payload['spondId'] ?? null;
+        $email = $payload['email'] ?? null;
 
         return new MemberUser(
             $sub,
@@ -123,6 +128,7 @@ final class MemberSession
             MemberUser::normalizePicture($payload['picture'] ?? null),
             $clubs,
             is_string($spondId) ? $spondId : null,
+            is_string($email) ? $email : null,
         );
     }
 }

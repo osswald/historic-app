@@ -6,6 +6,7 @@ namespace App\Application\Dashboard;
 
 use App\Application\Event\EventCatalog;
 use App\Application\Event\EventPresenter;
+use App\Application\Helfer\ShowHelfer;
 use App\Application\Poll\PollCatalog;
 use App\Application\Poll\PollPresenter;
 use App\Application\Tasks\ShowTasks;
@@ -21,6 +22,7 @@ final class BuildDashboard
         private PollPresenter $pollPresenter,
         private ZurichClock $clock,
         private ShowTasks $tasks,
+        private ShowHelfer $helfer,
     ) {
     }
 
@@ -84,19 +86,22 @@ final class BuildDashboard
         $featured ??= $answerable[0] ?? null;
         $ownTasks = $this->tasks->tasks($user, null);
         $taskRows = is_array($ownTasks['tasks'] ?? null) ? $ownTasks['tasks'] : [];
+        $shifts = $this->helfer->mine($user);
+        $shiftRows = is_array($shifts['shifts'] ?? null) ? $shifts['shifts'] : [];
 
         return [
             'counts' => [
                 'openResponses' => $open,
                 'polls' => $pending,
-                'shifts' => 0,
+                'shifts' => ($shifts['configured'] ?? false) === true && ($shifts['notice'] ?? null) === null ? (int) ($shifts['assignedCount'] ?? 0) : null,
                 'tasks' => ($ownTasks['configured'] ?? false) === true && ($ownTasks['notice'] ?? null) === null ? count($taskRows) : null,
             ],
             'upcoming' => $cards,
             'nextSevenDays' => $week,
             'tasks' => $taskRows,
             'tasksNotice' => $ownTasks['notice'] ?? null,
-            'shifts' => [],
+            'shifts' => $shiftRows,
+            'shiftsNotice' => $shifts['notice'] ?? null,
             'openPoll' => $featured instanceof \App\Domain\Poll\Poll ? $this->pollPresenter->spotlight($featured, $user) : null,
         ];
     }

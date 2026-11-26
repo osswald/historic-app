@@ -5,6 +5,7 @@ import type { DashboardData } from '../api/types'
 import { EventRow } from '../components/EventRow'
 import { useMember, useToast } from '../shell/context'
 import { readShowDoneTasks, tasksEmptyCopy, visibleTasks } from '../tasks/labels'
+import { TaskListName, visibleText } from '../tasks/names'
 import { ShowDoneTasksToggle } from '../tasks/ShowDoneTasksToggle'
 
 function greeting(): string {
@@ -106,7 +107,8 @@ export function DashboardPage() {
                 <div className="item" key={task.id}>
                   <div className={task.status === 'done' ? 'check checked' : 'check'}>{task.status === 'done' ? '✓' : ''}</div>
                   <div>
-                    <b>{task.title ?? task.id}</b>
+                    <b>{visibleText(task.title)}</b>
+                    <TaskListName taskList={task.taskList} />
                     {task.details ? <small>{task.details}</small> : null}
                     <small>{task.statusLabel ?? task.status ?? 'Ohne Status'}</small>
                   </div>
@@ -116,7 +118,19 @@ export function DashboardPage() {
           </div>
           <div className="panel">
             <div className="panel-head"><h2>Meine Helferschichten</h2></div>
-            <p className="empty">Persönliche Schichten erscheinen hier, sobald die Helferplanung verknüpft ist.</p>
+            {data?.shiftsNotice ? <p className="empty">{data.shiftsNotice}</p> : null}
+            {!data?.shiftsNotice && data && data.shifts.length === 0 ? <p className="empty">Keine eigenen Schichten.</p> : null}
+            <div className="simplelist">
+              {data?.shifts.map((shift) => (
+                <div className="item" key={`${shift.status}-${shift.id}`}>
+                  <div>
+                    <b>{shift.title}</b>
+                    <small>{[shift.eventTitle, shift.time ?? shift.date, shift.statusLabel].filter(Boolean).join(' · ')}</small>
+                  </div>
+                  {shift.url ? <a className="btn small" href={shift.url} rel="noreferrer" target="_blank">Mein Helferlink</a> : null}
+                </div>
+              ))}
+            </div>
           </div>
             <div className="panel">
             <div className="panel-head">

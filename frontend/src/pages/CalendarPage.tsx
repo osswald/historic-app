@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { api, ApiError } from '../api/client'
 import type { ClubEvent } from '../api/types'
@@ -54,7 +54,7 @@ export function CalendarPage() {
   const title = cursor.toLocaleDateString('de-CH', { month: 'long', year: 'numeric' })
 
   return (
-    <section>
+    <section className="calendar-page">
       <div className="heading">
         <div>
           <div className="eyebrow">Kalender und Termine</div>
@@ -77,7 +77,7 @@ export function CalendarPage() {
             <button className={mine ? 'btn small' : 'btn small light'} type="button" onClick={() => setMine((value) => !value)}>Meine Termine</button>
           </div>
         </div>
-        <div className="toolbar" style={{ padding: '0 16px 12px' }}>
+        <div className="cal-filters">
           <select aria-label="Kategorie" className="input" value={category} onChange={(event) => setCategory(event.target.value)}>
             <option value="">Alle Kategorien</option>
             {categories.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -109,6 +109,40 @@ function iso(year: number, month: number, day: number): string {
   return `${year}-${monthText}-${dayText}`
 }
 
+function CalendarTitleLink({ event, chip = false }: { event: ClubEvent; chip?: boolean }) {
+  const measureRef = useRef<HTMLSpanElement>(null)
+  const [fullTitle, setFullTitle] = useState<string | undefined>(undefined)
+
+  useEffect(() => {
+    const target = measureRef.current
+    if (!target) return
+    const update = () => {
+      if (target.clientWidth === 0) {
+        setFullTitle(undefined)
+        return
+      }
+      const clipped = target.scrollWidth - target.clientWidth > 0 || target.scrollHeight - target.clientHeight > 1
+      setFullTitle(clipped ? event.title : undefined)
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [event.title])
+
+  return (
+    <Link
+      className={chip ? 'cal-event cal-tip' : 'cal-tip'}
+      data-full-title={fullTitle}
+      to={`/veranstaltungen/${event.id}`}
+    >
+      {chip
+        ? <span className="cal-event-label" ref={measureRef}>{event.title}</span>
+        : <span className="cal-title-text" ref={measureRef}>{event.title}</span>}
+    </Link>
+  )
+}
+
 function Month({ events, year, month }: { events: ClubEvent[]; year: number; month: number }) {
   const first = new Date(year, month, 1)
   const offset = (first.getDay() + 6) % 7
@@ -127,7 +161,7 @@ function Month({ events, year, month }: { events: ClubEvent[]; year: number; mon
           return (
             <div className={hits.length ? 'day cal-cell on' : 'day cal-cell'} key={date}>
               <strong>{day}</strong>
-              {hits.map((event) => <em key={event.id}><Link to={`/veranstaltungen/${event.id}`}>{event.title}</Link></em>)}
+              {hits.map((event) => <em key={event.id}><CalendarTitleLink chip event={event} /></em>)}
             </div>
           )
         })}
@@ -146,16 +180,29 @@ function Week({ events, cursor }: { events: ClubEvent[]; cursor: Date }) {
     return date
   })
   return (
-    <div className="panel-inner stack">
+    <div className="panel-inner cal-week">
       {days.map((date) => {
         const key = iso(date.getFullYear(), date.getMonth(), date.getDate())
         const hits = eventsOn(events, key)
         return (
-          <div key={key}>
-            <b>{date.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
-            {hits.length === 0 ? <p className="muted">Keine Veranstaltung</p> : hits.map((event) => (
-              <p key={event.id}><Link to={`/veranstaltungen/${event.id}`}>{event.title}</Link></p>
-            ))}
+          <div className="day-block" key={key}>
+            <h3>{date.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' })}</h3>
+            {hits.length === 0 ? <p className="muted cal-week-empty">Keine Veranstaltung</p> : (
+              <div className="cal-week-events">
+                {hits.map((event) => {
+                  const pill = listPill(event)
+                  return (
+                    <div className="cal-week-event" key={event.id}>
+                      <div className="eventcopy">
+                        <h3><CalendarTitleLink event={event} /></h3>
+                        {event.card?.line2 ? <div className="eventmeta">{event.card.line2}</div> : null}
+                      </div>
+                      <span className={pill.className}>{pill.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         )
       })}
@@ -177,14 +224,26 @@ function List({ events, year, month }: { events: ClubEvent[]; year: number; mont
   }))
   if (rows.length === 0) return <p className="empty">In diesem Monat liegt keine Veranstaltung.</p>
   return (
-    <div>
+    <div className="cal-list">
       {rows.map((event) => {
         const pill = listPill(event)
+        const card = event.card
         return (
           <div className="eventrow" key={event.id}>
+            {card ? (
+              <div className="datebox">
+                <b>{card.day}</b>
+                <span>{card.month}</span>
+              </div>
+            ) : null}
             <div className="eventcopy">
-              <h3><Link to={`/veranstaltungen/${event.id}`}>{event.title}</Link></h3>
-              <div className="eventmeta">{event.card?.line1}</div>
+              <h3><CalendarTitleLink event={event} /></h3>
+              {card && (card.line1 || card.line2) ? (
+                <div className="eventmeta">
+                  {card.line1}
+                  {card.line2 ? <><br />{card.line2}</> : null}
+                </div>
+              ) : null}
             </div>
             <span className={pill.className}>{pill.label}</span>
           </div>

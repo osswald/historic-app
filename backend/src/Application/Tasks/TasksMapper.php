@@ -19,7 +19,8 @@ final class TasksMapper
     {
         $lists = [];
         foreach ($rows as $row) {
-            if (!is_array($row)) {
+            $row = self::record($row);
+            if ($row === null) {
                 continue;
             }
             $id = self::id($row['id'] ?? null);
@@ -29,6 +30,8 @@ final class TasksMapper
             $lists[] = [
                 'id' => $id,
                 'name' => self::firstText($row, ['name', 'title']),
+                'category' => self::category($row['category'] ?? null),
+                'orgGroup' => self::named($row['org_group'] ?? null),
                 'progress' => self::progress($row),
                 'addressable' => self::safeId($id),
             ];
@@ -51,8 +54,8 @@ final class TasksMapper
             'id' => $id,
             'name' => self::firstText($row, ['name', 'title']),
             'description' => self::text($row['description'] ?? null),
-            'categoryId' => self::text($row['category_id'] ?? null),
-            'orgGroupId' => self::text($row['org_group_id'] ?? null),
+            'category' => self::category($row['category'] ?? null),
+            'orgGroup' => self::named($row['org_group'] ?? null),
             'isPersonal' => is_bool($row['is_personal'] ?? null) ? $row['is_personal'] : null,
             'templateId' => self::text($row['template_id'] ?? null),
             'progress' => self::progress($row),
@@ -69,7 +72,8 @@ final class TasksMapper
     {
         $templates = [];
         foreach ($rows as $row) {
-            if (!is_array($row)) {
+            $row = self::record($row);
+            if ($row === null) {
                 continue;
             }
             $id = self::id($row['id'] ?? null);
@@ -79,12 +83,40 @@ final class TasksMapper
             $templates[] = [
                 'id' => $id,
                 'name' => self::firstText($row, ['name', 'title']),
+                'category' => self::category($row['category'] ?? null),
+                'orgGroup' => self::named($row['org_group'] ?? null),
                 'taskCount' => self::number($row['task_count'] ?? null),
                 'addressable' => self::safeId($id),
             ];
         }
 
         return $templates;
+    }
+
+    /**
+     * A template detail keeps tasks only when the tasks API actually sent them.
+     *
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>
+     */
+    public static function template(array $row): array
+    {
+        $row = self::unwrapData($row);
+        $id = self::id($row['id'] ?? null);
+        $tasks = $row['tasks'] ?? null;
+        $tasksIncluded = is_array($tasks) && array_is_list($tasks);
+
+        return [
+            'id' => $id,
+            'name' => self::firstText($row, ['name', 'title']),
+            'description' => self::text($row['description'] ?? null),
+            'category' => self::category($row['category'] ?? null),
+            'orgGroup' => self::named($row['org_group'] ?? null),
+            'taskCount' => self::number($row['task_count'] ?? null),
+            'addressable' => is_string($id) && self::safeId($id),
+            'tasksIncluded' => $tasksIncluded,
+            'tasks' => $tasksIncluded ? self::tasks($tasks) : [],
+        ];
     }
 
     /**
@@ -95,7 +127,8 @@ final class TasksMapper
     {
         $tasks = [];
         foreach ($rows as $row) {
-            if (!is_array($row)) {
+            $row = self::record($row);
+            if ($row === null) {
                 continue;
             }
             $id = self::id($row['id'] ?? null);
@@ -109,6 +142,7 @@ final class TasksMapper
                 'details' => self::firstText($row, ['description', 'details', 'body', 'text']),
                 'status' => $status,
                 'statusLabel' => is_string($status) ? TaskStatus::label($status) : null,
+                'taskList' => self::named($row['task_list'] ?? null),
                 'addressable' => self::safeId($id),
             ];
         }
@@ -141,6 +175,71 @@ final class TasksMapper
         }
 
         return $data['data'];
+    }
+
+    /**
+     * A row is ignored when it is not an object. A {"data": ...} envelope is opened first.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function record(mixed $row): ?array
+    {
+        if (!is_array($row)) {
+            return null;
+        }
+        $row = self::unwrapData($row);
+
+        return array_is_list($row) ? null : $row;
+    }
+
+    /** @return array{id: string|null, name: string|null, color: string|null}|null */
+    private static function category(mixed $value): ?array
+    {
+        $value = self::record($value);
+        if ($value === null) {
+            return null;
+        }
+        $mapped = [
+            'id' => self::id($value['id'] ?? null),
+            'name' => self::text($value['name'] ?? null),
+            'color' => self::color($value['color'] ?? null),
+        ];
+        if ($mapped['id'] === null && $mapped['name'] === null && $mapped['color'] === null) {
+            return null;
+        }
+
+        return $mapped;
+    }
+
+    /** @return array{id: string|null, name: string|null}|null */
+    private static function named(mixed $value): ?array
+    {
+        $value = self::record($value);
+        if ($value === null) {
+            return null;
+        }
+        $mapped = [
+            'id' => self::id($value['id'] ?? null),
+            'name' => self::text($value['name'] ?? null),
+        ];
+        if ($mapped['id'] === null && $mapped['name'] === null) {
+            return null;
+        }
+
+        return $mapped;
+    }
+
+    private static function color(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = trim($value);
+        if (preg_match('/\A#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})\z/', $value) !== 1) {
+            return null;
+        }
+
+        return $value;
     }
 
     /** @param array<string, mixed> $row */

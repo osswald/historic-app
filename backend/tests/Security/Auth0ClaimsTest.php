@@ -38,9 +38,46 @@ final class Auth0ClaimsTest extends TestCase
 
         self::assertSame('auth0|42', $member->getUserIdentifier());
         self::assertSame('Vera Verein', $member->displayName());
+        self::assertNull($member->email());
         self::assertSame(['Vorstand', 'Mitglieder'], $member->groups());
         self::assertTrue($member->isOrganizer());
         self::assertFalse($member->isAdmin());
+    }
+
+    public function testIdTokenEmailIsKeptApartFromTheSubject(): void
+    {
+        $access = $this->token([
+            'aud' => self::AUDIENCE,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'email' => 'access@example.test',
+        ]);
+        $id = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'email' => 'vera@example.test',
+        ]);
+
+        $member = $this->member($access, $id);
+
+        self::assertSame('auth0|42', $member->getUserIdentifier());
+        self::assertSame('vera@example.test', $member->email());
+        self::assertArrayNotHasKey('email', $member->profile());
+
+        $onlyId = $this->token([
+            'aud' => self::CLIENT,
+            'sub' => 'auth0|42',
+            'name' => 'Vera Verein',
+            'email' => 'vera@example.test',
+        ]);
+        $fromId = $this->claims->member(
+            $this->claims->decode($onlyId, self::$publicKey, self::ISSUER, self::CLIENT),
+            null,
+            self::GROUPS,
+        );
+        self::assertSame('vera@example.test', $fromId->email());
+        self::assertSame('auth0|42', $fromId->getUserIdentifier());
     }
 
     public function testNameComesFromTheIdTokenWhenTheAccessTokenHasNone(): void

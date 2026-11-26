@@ -66,7 +66,23 @@ final class Auth0Claims
             $this->picture($access, $id),
             $this->clubs($clubToken),
             $this->spondId($clubToken),
+            $this->email($id, $access),
         );
+    }
+
+    private function email(?\stdClass $id, \stdClass $access): ?string
+    {
+        foreach ([$id, $access] as $token) {
+            if (!$token instanceof \stdClass) {
+                continue;
+            }
+            $email = MemberUser::normalizeEmail($token->email ?? null);
+            if ($email !== null) {
+                return $email;
+            }
+        }
+
+        return null;
     }
 
     private function spondId(\stdClass $token): ?string

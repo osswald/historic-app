@@ -41,6 +41,10 @@ export function writeShowDoneTasks(show: boolean): void {
   }
 }
 
+export function statusButtonClass(current: boolean): string {
+  return current ? 'btn small primary' : 'btn small'
+}
+
 export function visibleTasks<T extends { status: string | null }>(tasks: readonly T[], showDone: boolean): T[] {
   if (showDone) return [...tasks]
   return tasks.filter((task) => task.status !== 'done')

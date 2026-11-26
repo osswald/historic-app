@@ -32,14 +32,19 @@ export function MobileSaveBar({ dirty, busy = false, incomplete, onCancel }: Pro
       if (!active.closest('.editor-form')) return
       if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return
       const current = barRef.current
-      if (!current) return
-      const barTop = current.getBoundingClientRect().top
       const rect = active.getBoundingClientRect()
       const margin = 16
-      if (rect.bottom > barTop - margin) {
-        window.scrollBy({ top: rect.bottom - (barTop - margin) })
-      } else if (rect.top < 72) {
-        window.scrollBy({ top: rect.top - 72 })
+      const headerHeight = window.matchMedia('(max-width: 700px)').matches ? 67 : 131
+      const topLimit = headerHeight + margin
+      if (current && getComputedStyle(current).display !== 'none') {
+        const barTop = current.getBoundingClientRect().top
+        if (rect.bottom > barTop - margin) {
+          window.scrollBy({ top: rect.bottom - (barTop - margin) })
+          return
+        }
+      }
+      if (rect.top < topLimit) {
+        window.scrollBy({ top: rect.top - topLimit })
       }
     }
 

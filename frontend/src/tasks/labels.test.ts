@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { progressText, readShowDoneTasks, TASK_STATUSES, tasksEmptyCopy, visibleTasks, writeShowDoneTasks } from './labels'
+import { progressText, readShowDoneTasks, statusButtonClass, TASK_STATUSES, tasksEmptyCopy, visibleTasks, writeShowDoneTasks } from './labels'
 
 describe('task labels', () => {
   afterEach(() => {
@@ -9,6 +9,13 @@ describe('task labels', () => {
   it('uses the three statuses from the tasks API', () => {
     expect(TASK_STATUSES.map((status) => status.value)).toEqual(['todo', 'in_progress', 'done'])
     expect(TASK_STATUSES.map((status) => status.label)).toEqual(['Offen', 'In Arbeit', 'Erledigt'])
+  })
+
+  it('paints only the current status in the primary color', () => {
+    expect(statusButtonClass(true)).toBe('btn small primary')
+    expect(statusButtonClass(false)).toBe('btn small')
+    const classes = TASK_STATUSES.map((status) => statusButtonClass(status.value === 'in_progress'))
+    expect(classes).toEqual(['btn small', 'btn small primary', 'btn small'])
   })
 
   it('formats list progress in German', () => {

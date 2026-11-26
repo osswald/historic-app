@@ -254,18 +254,37 @@ export type ClubEvent = {
 
 export type TaskProgress = { done: number | null; total: number | null; percent: number | null }
 
+export type TaskCategory = {
+  id: string | null
+  name: string | null
+  color: string | null
+}
+
+export type TaskOrgGroup = {
+  id: string | null
+  name: string | null
+}
+
+export type TaskListRef = {
+  id: string | null
+  name: string | null
+}
+
 export type TaskItem = {
   id: string
   title: string | null
   details: string | null
   status: string | null
   statusLabel: string | null
+  taskList: TaskListRef | null
   addressable: boolean
 }
 
 export type TaskListSummary = {
   id: string
   name: string | null
+  category: TaskCategory | null
+  orgGroup: TaskOrgGroup | null
   progress: TaskProgress | null
   addressable: boolean
 }
@@ -274,8 +293,8 @@ export type TaskListDetail = {
   id: string | null
   name: string | null
   description: string | null
-  categoryId: string | null
-  orgGroupId: string | null
+  category: TaskCategory | null
+  orgGroup: TaskOrgGroup | null
   isPersonal: boolean | null
   templateId: string | null
   progress: TaskProgress | null
@@ -286,8 +305,34 @@ export type TaskListDetail = {
 export type TaskTemplate = {
   id: string
   name: string | null
+  category: TaskCategory | null
+  orgGroup: TaskOrgGroup | null
   taskCount: number | null
   addressable: boolean
+}
+
+export type TaskTemplateDetail = TaskTemplate & {
+  description: string | null
+  tasksIncluded: boolean
+  tasks: TaskItem[]
+}
+
+export type EventTaskListLink = {
+  id: string
+  name: string | null
+  category: TaskCategory | null
+  orgGroup: TaskOrgGroup | null
+  progress: TaskProgress | null
+  addressable: boolean
+  unavailable: boolean
+}
+
+export type EventTaskLists = {
+  configured: boolean
+  missing: string[]
+  notice: string | null
+  canEdit: boolean
+  lists: EventTaskListLink[]
 }
 
 export type TasksRead<T> = {
@@ -296,13 +341,67 @@ export type TasksRead<T> = {
   notice: string | null
 } & T
 
+export type HelferAssignment = {
+  id: string
+  title: string
+  eventTitle: string | null
+  date: string | null
+  time: string | null
+  status: string
+  statusLabel: string
+  binding: boolean
+  url: string | null
+}
+
+export type HelferPerson = {
+  name: string
+  status: string
+  statusLabel: string
+}
+
+export type HelferShift = {
+  id: string
+  title: string
+  category: string | null
+  startsAt: string | null
+  endsAt: string | null
+  remarks: string | null
+  needed: number
+  assignedCount: number
+  reported: number
+  open: number
+  url: string | null
+  people: HelferPerson[]
+}
+
+export type HelferPlan = {
+  id: string
+  title: string
+  date: string | null
+  url: string | null
+}
+
+export type EventHelfer = {
+  configured: boolean
+  missing: string[]
+  notice: string | null
+  present: boolean
+  canEdit: boolean
+  assigned: boolean
+  url: string | null
+  planTitle: string | null
+  planUrl: string | null
+  shifts: HelferShift[]
+}
+
 export type DashboardData = {
-  counts: { openResponses: number; polls: number; shifts: number; tasks: number | null }
+  counts: { openResponses: number; polls: number; shifts: number | null; tasks: number | null }
   upcoming: EventCard[]
   nextSevenDays: Array<{ date: string; weekday: string; day: string; hasEvent: boolean }>
   tasks: TaskItem[]
   tasksNotice: string | null
-  shifts: unknown[]
+  shifts: HelferAssignment[]
+  shiftsNotice: string | null
   openPoll: { id: string; title: string; prompt: string; state: PollState } | null
 }
 

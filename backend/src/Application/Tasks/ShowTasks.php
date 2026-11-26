@@ -46,6 +46,28 @@ final class ShowTasks
     }
 
     /** @return array<string, mixed> */
+    public function template(MemberUser $member, string $id): array
+    {
+        if (!TasksMapper::safeId($id)) {
+            throw new InvalidRequest(['id' => 'Die Kennung ist ungültig.']);
+        }
+
+        return $this->read($member, function (string $base, string $token, string $sub) use ($id): array {
+            foreach (TasksMapper::collection($this->client->templates($base, $token, $sub)) as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $template = TasksMapper::template($row);
+                if ($template['id'] === $id) {
+                    return $template;
+                }
+            }
+
+            throw new TasksNotFound();
+        }, 'template');
+    }
+
+    /** @return array<string, mixed> */
     public function tasks(MemberUser $member, ?string $status): array
     {
         if ($status !== null && !TaskStatus::isKnown($status)) {
@@ -136,7 +158,7 @@ final class ShowTasks
     }
 
     /** @return array{0: string, 1: string, 2: string} */
-    private function connection(MemberUser $member): array
+    public function connection(MemberUser $member): array
     {
         $sub = trim($member->getUserIdentifier());
         if ($sub === '' || strpbrk($sub, "\r\n\0") !== false) {
@@ -157,7 +179,7 @@ final class ShowTasks
             'configured' => $configured,
             'missing' => $missing,
             'notice' => $notice,
-            $key => $key === 'list' ? null : [],
+            $key => $key === 'list' || $key === 'template' ? null : [],
         ];
     }
 

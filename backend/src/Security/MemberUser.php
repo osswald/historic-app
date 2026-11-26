@@ -14,6 +14,8 @@ final class MemberUser implements UserInterface
 
     private ?string $spondId;
 
+    private ?string $email;
+
     /**
      * @param list<string> $groups
      * @param list<string> $clubs
@@ -25,10 +27,12 @@ final class MemberUser implements UserInterface
         private ?string $picture = null,
         array $clubs = [],
         ?string $spondId = null,
+        ?string $email = null,
     ) {
         $this->picture = self::normalizePicture($picture);
         $this->clubs = self::normalizeClubs($clubs);
         $this->spondId = self::normalizeSpondId($spondId);
+        $this->email = self::normalizeEmail($email);
     }
 
     public function getUserIdentifier(): string
@@ -55,6 +59,11 @@ final class MemberUser implements UserInterface
     public function spondId(): ?string
     {
         return $this->spondId;
+    }
+
+    public function email(): ?string
+    {
+        return $this->email;
     }
 
     /** @return list<Club> */
@@ -136,6 +145,19 @@ final class MemberUser implements UserInterface
         }
 
         return $spondId;
+    }
+
+    public static function normalizeEmail(mixed $email): ?string
+    {
+        if (!is_string($email)) {
+            return null;
+        }
+        $email = trim($email);
+        if ($email === '' || strlen($email) > 254 || strpbrk($email, "\r\n\0 \t") !== false || preg_match('/\A[^@\s]+@[^@\s]+\z/', $email) !== 1) {
+            return null;
+        }
+
+        return $email;
     }
 
     public function getRoles(): array

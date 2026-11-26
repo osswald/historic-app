@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Application\Event;
 
+use App\Application\Helfer\ShowHelfer;
 use App\Application\InvalidRequest;
 use App\Application\NotFound;
 use App\Application\ZurichClock;
@@ -21,6 +22,7 @@ final class RecordAttendance
         private AuditRecorder $audit,
         private EntityManagerInterface $entityManager,
         private ZurichClock $clock,
+        private ShowHelfer $helfer,
     ) {
     }
 
@@ -47,14 +49,16 @@ final class RecordAttendance
         if ($before === null && $spondId !== null) {
             $before = $day->responseForSpond($spondId)?->toAudit();
         }
+        if ($attendance === Attendance::No && $before !== null && ($before['answer'] ?? null) !== 'no' && $this->helfer->blocksDecline($actor, $day->event()->id())) {
+            throw new InvalidRequest(['answer' => 'Eine verbindliche Helferschicht ist eingeteilt. Die Teilnahme bleibt auf Ja.']);
+        }
+
         $now = $this->clock->now();
         $response = $day->answer($sub, $actor->displayName(), $attendance, $comment, $now, $spondId);
         if ($before === $response->toAudit()) {
             return;
         }
 
-        // Eine verbindliche Helferschicht sperrt den Wechsel von Ja auf Nein,
-        // sobald die Helferplanung eine verlässliche Abfrage liefert.
         $this->audit->record(
             $actor->getUserIdentifier(),
             'event_response',

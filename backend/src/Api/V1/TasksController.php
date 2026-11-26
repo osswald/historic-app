@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Api\V1;
 
+use App\Application\Tasks\EventTaskLists;
 use App\Application\Tasks\ShowTasks;
 use App\Application\Tasks\TasksBaseInvalid;
 use App\Application\Tasks\TasksNotConfigured;
@@ -33,6 +34,33 @@ final class TasksController extends ApiController
     public function templates(ShowTasks $tasks): Response
     {
         return $this->jsonData($tasks->templates($this->member()));
+    }
+
+    #[Route('/api/v1/aufgaben/templates/{id}', name: 'api_tasks_template', methods: ['GET'])]
+    public function template(string $id, ShowTasks $tasks): Response
+    {
+        return $this->jsonData($tasks->template($this->member(), $id));
+    }
+
+    #[Route('/api/v1/events/{id}/task-lists', name: 'api_event_task_lists', methods: ['GET'])]
+    public function eventLists(string $id, EventTaskLists $lists): Response
+    {
+        return $this->jsonData($lists->forEvent($this->member(), $id));
+    }
+
+    #[Route('/api/v1/events/{id}/task-lists', name: 'api_event_task_lists_create', methods: ['POST'])]
+    public function eventCreate(string $id, Request $request, EventTaskLists $lists): Response
+    {
+        try {
+            $payload = json_decode($request->getContent() === '' ? '{}' : $request->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            throw new HttpException(400, 'Die Eingaben sind unvollständig.');
+        }
+        if (!is_array($payload)) {
+            throw new HttpException(400, 'Die Eingaben sind unvollständig.');
+        }
+
+        return $this->call(fn (): array => $lists->create($this->member(), $id, $payload), 201);
     }
 
     #[Route('/api/v1/aufgaben/tasks', name: 'api_tasks_mine', methods: ['GET'])]

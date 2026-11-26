@@ -109,6 +109,34 @@ final class MemberSessionAuthenticatorTest extends TestCase
         self::assertNull($cleared->spondId());
     }
 
+    public function testSessionKeepsTheEmailAndDropsAnythingElse(): void
+    {
+        $session = new Session(new MockArraySessionStorage());
+        $session->start();
+        $request = Request::create('/api/v1/auth/callback');
+        $request->setSession($session);
+        $store = new MemberSession('historic_session');
+        $store->store($request, new MemberUser('auth0|1', 'Vera Verein', ['Mitglieder'], null, ['historic'], 'member-1', ' vera@example.test '));
+        $saved = $request->getSession()->get(MemberSession::KEY);
+        self::assertIsArray($saved);
+        self::assertSame('vera@example.test', $saved['email']);
+        self::assertSame('auth0|1', $saved['sub']);
+
+        $request->cookies->set('historic_session', $request->getSession()->getId());
+        $user = $store->read($request);
+        self::assertInstanceOf(MemberUser::class, $user);
+        self::assertSame('vera@example.test', $user->email());
+        self::assertSame('auth0|1', $user->getUserIdentifier());
+
+        $store->store($request, new MemberUser('auth0|1', 'Vera Verein', ['Mitglieder'], null, ['historic'], null, 'auth0|1'));
+        $saved = $request->getSession()->get(MemberSession::KEY);
+        self::assertIsArray($saved);
+        self::assertArrayNotHasKey('email', $saved);
+        $cleared = $store->read($request);
+        self::assertInstanceOf(MemberUser::class, $cleared);
+        self::assertNull($cleared->email());
+    }
+
     public function testBrokenSessionPayloadIsDropped(): void
     {
         $request = $this->requestWithMember(['sub' => '']);

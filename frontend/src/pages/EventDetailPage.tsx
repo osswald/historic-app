@@ -4,7 +4,9 @@ import { api, ApiError } from '../api/client'
 import type { ClubEvent, EventDay } from '../api/types'
 import { AuditHistory } from '../components/AuditHistory'
 import { useMember, useToast } from '../shell/context'
-import { confirmLeave } from '../forms/unsaved'
+import { EventHelferPanel } from './EventHelferPanel'
+import { EventTasksPanel } from './EventTasksPanel'
+import { attendanceGroupStartsOpen, groupAttendance } from './attendanceGroups'
 import { GastroPlanPanel } from './GastroPlanPanel'
 import { RidePlanPanel } from './RidePlanPanel'
 
@@ -13,22 +15,41 @@ const TABS = [
   { id: 'rides', label: 'Fahrtenplanung' },
   { id: 'gastro', label: 'Gastronomie' },
   { id: 'tasks', label: 'Aufgaben' },
+  { id: 'helfer', label: 'Helfer' },
 ] as const
 
 type Tab = (typeof TABS)[number]['id']
 
+function tabFromBereich(value: string | null): Tab {
+  if (value === 'rides' || value === 'gastro' || value === 'tasks' || value === 'helfer') return value
+  return 'overview'
+}
+
 export function EventDetailPage() {
   const { id } = useParams()
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const member = useMember()
   const toast = useToast()
-  const requested = params.get('bereich')
+  const tab = tabFromBereich(params.get('bereich'))
   const [event, setEvent] = useState<ClubEvent | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>(requested === 'gastro' || requested === 'rides' || requested === 'tasks' ? requested : 'overview')
   const [busy, setBusy] = useState(false)
   const [copying, setCopying] = useState(false)
+
+  function openTab(next: Tab) {
+    const current = params.get('bereich')
+    const nextParams = new URLSearchParams(params)
+    if (next === 'overview') {
+      if (current === null) return
+      nextParams.delete('bereich')
+    } else if (current === next) {
+      return
+    } else {
+      nextParams.set('bereich', next)
+    }
+    setParams(nextParams, { preventScrollReset: true })
+  }
 
   useEffect(() => {
     if (!id) return
@@ -99,7 +120,7 @@ export function EventDetailPage() {
       </div>
       <div className="subnav" role="tablist">
         {TABS.map((item) => (
-          <button className={tab === item.id ? 'active' : ''} key={item.id} type="button" onClick={() => { if (item.id !== tab && !confirmLeave()) return; setTab(item.id) }}>{item.label}</button>
+          <button className={tab === item.id ? 'active' : ''} key={item.id} type="button" onClick={() => openTab(item.id)}>{item.label}</button>
         ))}
       </div>
       {tab === 'overview' ? (
@@ -163,15 +184,16 @@ export function EventDetailPage() {
             <div className="panel">
               <div className="panel-head"><h2>Verknüpfte Bereiche</h2></div>
               <div className="panel-inner" style={{ paddingTop: 0 }}>
-                <p className="muted" style={{ marginTop: 0 }}>Helferplanung, Aufgaben, Reservationen und Nextcloud werden an diese Veranstaltung gehängt, sobald die jeweiligen Schnittstellen geprüft sind.</p>
+                <p className="muted" style={{ marginTop: 0 }}>Aufgabenlisten hängen am Reiter Aufgaben, Schichten am Reiter Helfer. Reservationen und Nextcloud folgen.</p>
               </div>
             </div>
           </div>
         </div>
       ) : null}
-      {tab === 'rides' ? <RidePlanPanel event={event} onCancel={() => setTab('overview')} /> : null}
-      {tab === 'gastro' ? <GastroPlanPanel event={event} onCancel={() => setTab('overview')} /> : null}
-      {tab === 'tasks' ? <LaterNote text="Aufgabenlisten bleiben in der bestehenden Aufgaben-App. Hier erscheinen sie, sobald die Verknüpfung steht." /> : null}
+      {tab === 'rides' ? <RidePlanPanel event={event} onCancel={() => openTab('overview')} /> : null}
+      {tab === 'gastro' ? <GastroPlanPanel event={event} onCancel={() => openTab('overview')} /> : null}
+      {tab === 'tasks' ? <EventTasksPanel eventId={event.id} /> : null}
+      {tab === 'helfer' ? <EventHelferPanel eventId={event.id} /> : null}
     </section>
   )
 }
@@ -201,26 +223,60 @@ function DayAnswer({
           <span className="muted">Kommentar, optional</span>
           <input className="input" style={{ marginTop: 6 }} value={comment} onChange={(event) => setComment(event.target.value)} />
         </label>
-        <p className="muted">Alle eingeladenen Mitglieder können die Rückmeldungen sehen. Ja {day.summary.yes} · Nein {day.summary.no} · Ausstehend {day.summary.pending}</p>
-        {day.pending.length > 0 ? <p className="muted">Ausstehend: {day.pending.map((person) => person.name).join(', ')}</p> : null}
-        {day.responses.length === 0 ? <p className="muted">Noch keine Rückmeldung.</p> : null}
-        {day.responses.map((response) => (
-          <div className="item" key={response.name + response.answer}>
-            <div>
-              <b>{response.name}</b>
-              <small>{response.answerLabel}{response.comment ? ` · ${response.comment}` : ''}</small>
-            </div>
-          </div>
-        ))}
+        <p className="muted">Alle eingeladenen Mitglieder können die Rückmeldungen sehen.</p>
+        <AttendanceGroups dayId={day.id} pending={day.pending} responses={day.responses} />
       </div>
     </div>
   )
 }
 
-function LaterNote({ text }: { text: string }) {
+function AttendanceGroups({
+  dayId,
+  responses,
+  pending,
+}: {
+  dayId: string
+  responses: EventDay['responses']
+  pending: EventDay['pending']
+}) {
+  const groups = groupAttendance(responses, pending)
+  const [open, setOpen] = useState<Record<string, boolean>>(() => Object.fromEntries(
+    groups.map((group) => [group.id, attendanceGroupStartsOpen(group.id)]),
+  ))
+
   return (
-    <div className="panel">
-      <div className="panel-inner"><div className="note">{text}</div></div>
+    <div className="attendance-groups">
+      {groups.map((group) => {
+        const expanded = open[group.id] === true
+        const panelId = `attendance-${dayId}-${group.id}`
+        return (
+          <div className="attendance-group" key={group.id}>
+            <button
+              aria-controls={panelId}
+              aria-expanded={expanded}
+              className="attendance-group-head"
+              type="button"
+              onClick={() => setOpen((current) => ({ ...current, [group.id]: !expanded }))}
+            >
+              <span className="attendance-label">{group.label}</span>
+              <span className="attendance-count">{group.people.length}</span>
+              <span aria-hidden="true" className="attendance-chevron">{expanded ? '▾' : '▸'}</span>
+            </button>
+            {expanded ? (
+              <div className="attendance-group-body" id={panelId}>
+                {group.people.map((person, index) => (
+                  <div className="item" key={`${group.id}-${index}`}>
+                    <div>
+                      <b>{person.name}</b>
+                      {person.comment ? <small>{person.comment}</small> : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        )
+      })}
     </div>
   )
 }

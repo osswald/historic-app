@@ -4,7 +4,7 @@ import type { ClubEvent, DayOffset, EventVehicle, FleetOption, Ride, RidePlan, S
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
 import { VehiclePick } from '../forms/VehiclePick'
-import { confirmLeave, useRegisterUnsaved } from '../forms/unsaved'
+import { useRegisterUnsaved } from '../forms/unsaved'
 import { useToast } from '../shell/context'
 import { clockLabel, dayLabel, offsetLabel } from './rideTime'
 
@@ -48,8 +48,10 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
   const [baseline, setBaseline] = useState<string | null>(null)
+  const [composing, setComposing] = useState(false)
 
   useEffect(() => {
+    setComposing(false)
     api<RidePlan>(`/api/v1/events/${event.id}/rides`)
       .then((body) => {
         setPlan(body)
@@ -81,7 +83,6 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
   }
 
   function cancel() {
-    if (!confirmLeave()) return
     onCancel?.()
   }
 
@@ -155,6 +156,24 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
   const listedOptions = listed
     .map((item) => fleet.find((vehicle) => vehicle.id === item.vehicleId))
     .filter((vehicle): vehicle is FleetOption => vehicle !== undefined)
+
+  function addRide() {
+    setDrafts((current) => [...current, blankRide(event, listedOptions)])
+    setComposing(true)
+  }
+
+  if (rides.length === 0 && !composing) {
+    return (
+      <div className="stack">
+        {error ? <div className="banner-error">{error}</div> : null}
+        {canEdit ? (
+          <button className="btn light empty-add" type="button" onClick={addRide}>Fahrt hinzufügen</button>
+        ) : (
+          <p className="muted">Noch keine Fahrt erfasst.</p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="stack">
@@ -306,7 +325,7 @@ export function RidePlanPanel({ event, onCancel }: { event: ClubEvent; onCancel?
                   <button className="btn small light" type="button" onClick={() => setDrafts((current) => current.filter((item) => item.key !== ride.key))}>Fahrt entfernen</button>
                 </div>
               ))}
-              <button className="btn light" type="button" onClick={() => setDrafts((current) => [...current, blankRide(event, listedOptions)])}>Fahrt hinzufügen</button>
+              <button className="btn light" type="button" onClick={addRide}>Fahrt hinzufügen</button>
             </div>
           </div>
           <MobileSaveBar busy={busy} dirty={dirty} incomplete={incomplete} onCancel={cancel} />

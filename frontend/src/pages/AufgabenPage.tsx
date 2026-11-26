@@ -1,14 +1,17 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { TaskItem, TaskListDetail, TaskListSummary, TasksRead, TaskTemplate } from '../api/types'
+import type { TaskItem, TaskListDetail, TaskListSummary, TasksRead, TaskTemplate, TaskTemplateDetail } from '../api/types'
 import { ShowDoneTasksToggle } from '../tasks/ShowDoneTasksToggle'
 import { progressText, readShowDoneTasks, TASK_STATUSES, tasksEmptyCopy, visibleTasks } from '../tasks/labels'
+import { CategoryGroupNames, visibleText } from '../tasks/names'
+import { TaskRow } from '../tasks/TaskRow'
 import { useToast } from '../shell/context'
 
 type ListsPayload = TasksRead<{ lists: TaskListSummary[] }>
 type TemplatesPayload = TasksRead<{ templates: TaskTemplate[] }>
 type TasksPayload = TasksRead<{ tasks: TaskItem[] }>
 type DetailPayload = TasksRead<{ list: TaskListDetail | null }>
+type TemplateDetailPayload = TasksRead<{ template: TaskTemplateDetail | null }>
 
 export function AufgabenPage() {
   const toast = useToast()
@@ -18,13 +21,9 @@ export function AufgabenPage() {
   const [status, setStatus] = useState('')
   const [detail, setDetail] = useState<DetailPayload | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
+  const [templateDetail, setTemplateDetail] = useState<TemplateDetailPayload | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [templateId, setTemplateId] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [orgGroupId, setOrgGroupId] = useState('')
-  const [personal, setPersonal] = useState(false)
   const [busy, setBusy] = useState(false)
   const [showDone, setShowDone] = useState(readShowDoneTasks)
 
@@ -48,12 +47,28 @@ export function AufgabenPage() {
 
   useEffect(() => { load() }, [])
 
+  function loadDetail(id: string) {
+    return api<DetailPayload>(`/api/v1/aufgaben/task-lists/${encodeURIComponent(id)}`)
+      .then(setDetail)
+      .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Liste konnte nicht geladen werden.'))
+  }
+
   function openList(id: string) {
     setSelected(id)
     setDetail(null)
-    api<DetailPayload>(`/api/v1/aufgaben/task-lists/${encodeURIComponent(id)}`)
-      .then(setDetail)
-      .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Liste konnte nicht geladen werden.'))
+    void loadDetail(id)
+  }
+
+  function loadTemplate(id: string) {
+    return api<TemplateDetailPayload>(`/api/v1/aufgaben/templates/${encodeURIComponent(id)}`)
+      .then(setTemplateDetail)
+      .catch((reason: unknown) => setError(reason instanceof ApiError ? reason.message : 'Die Vorlage konnte nicht geladen werden.'))
+  }
+
+  function openTemplate(id: string) {
+    setSelectedTemplate(id)
+    setTemplateDetail(null)
+    void loadTemplate(id)
   }
 
   async function changeStatus(id: string, next: string) {
@@ -62,38 +77,14 @@ export function AufgabenPage() {
     try {
       await api(`/api/v1/aufgaben/tasks/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: JSON.stringify({ status: next }) })
       toast('Status gespeichert. Führend bleibt die Aufgaben-App.')
-      await loadTasks()
-      if (selected) openList(selected)
-      await loadLists()
+      await Promise.all([
+        loadTasks(),
+        loadLists(),
+        selected ? loadDetail(selected) : Promise.resolve(),
+        selectedTemplate ? loadTemplate(selectedTemplate) : Promise.resolve(),
+      ])
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'Der Status konnte nicht gespeichert werden.')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function createList(event: FormEvent) {
-    event.preventDefault()
-    setBusy(true)
-    setError(null)
-    const body: Record<string, string | boolean> = { name }
-    if (description.trim()) body.description = description.trim()
-    if (templateId) body.template_id = templateId
-    if (categoryId.trim()) body.category_id = categoryId.trim()
-    if (orgGroupId.trim()) body.org_group_id = orgGroupId.trim()
-    if (personal) body.is_personal = true
-    try {
-      await api('/api/v1/aufgaben/task-lists', { method: 'POST', body: JSON.stringify(body) })
-      toast('Liste erstellt.')
-      setName('')
-      setDescription('')
-      setTemplateId('')
-      setCategoryId('')
-      setOrgGroupId('')
-      setPersonal(false)
-      await loadLists()
-    } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Die Liste konnte nicht erstellt werden.')
     } finally {
       setBusy(false)
     }
@@ -102,6 +93,9 @@ export function AufgabenPage() {
   const showCompleted = showDone || status === 'done'
   const mine = visibleTasks(tasks?.tasks ?? [], showCompleted)
   const opened = detail?.list ? visibleTasks(detail.list.tasks, showDone) : []
+  const templateTasks = templateDetail?.template?.tasksIncluded
+    ? visibleTasks(templateDetail.template.tasks, showDone)
+    : []
 
   return (
     <section>
@@ -139,7 +133,8 @@ export function AufgabenPage() {
               {(lists?.lists ?? []).map((list) => (
                 <button className="item" key={list.id} type="button" disabled={!list.addressable} onClick={() => openList(list.id)}>
                   <div>
-                    <b>{list.name ?? list.id}</b>
+                    <b>{visibleText(list.name)}</b>
+                    <CategoryGroupNames category={list.category} orgGroup={list.orgGroup} />
                     <small>{progressText(list.progress) ?? 'Kein Fortschritt'}</small>
                   </div>
                 </button>
@@ -149,9 +144,10 @@ export function AufgabenPage() {
             {detail?.list ? (
               <div className="panel-inner">
                 <div className="tasks-list-head">
-                  <b>{detail.list.name ?? detail.list.id}</b>
+                  <b>{visibleText(detail.list.name)}</b>
                   {detail.list.tasks.length > 0 ? <ShowDoneTasksToggle checked={showDone} onChange={setShowDone} /> : null}
                 </div>
+                <CategoryGroupNames category={detail.list.category} orgGroup={detail.list.orgGroup} />
                 {detail.list.description ? <p className="muted">{detail.list.description}</p> : null}
                 <p className="muted">{progressText(detail.list.progress) ?? 'Kein Fortschritt'}</p>
                 {detail.list.isPersonal ? <p className="muted">Persönliche Liste</p> : null}
@@ -169,50 +165,39 @@ export function AufgabenPage() {
             <Notice text={sectionText(templates, templates?.templates.length ?? 0, 'Keine Vorlagen.')} />
             <div className="simplelist">
               {(templates?.templates ?? []).map((template) => (
-                <div className="item" key={template.id}>
+                <button className="item" key={template.id} type="button" disabled={!template.addressable} onClick={() => openTemplate(template.id)}>
                   <div>
-                    <b>{template.name ?? template.id}</b>
+                    <b>{visibleText(template.name)}</b>
+                    <CategoryGroupNames category={template.category} orgGroup={template.orgGroup} />
                     <small>{template.taskCount === null ? 'Aufgabenanzahl offen' : `${template.taskCount} Aufgaben`}</small>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
+            {templateDetail?.notice ? <p className="empty">{templateDetail.notice}</p> : null}
+            {templateDetail?.template ? (
+              <div className="panel-inner">
+                <div className="tasks-list-head">
+                  <b>{visibleText(templateDetail.template.name)}</b>
+                  {templateDetail.template.tasksIncluded && templateDetail.template.tasks.length > 0 ? (
+                    <ShowDoneTasksToggle checked={showDone} onChange={setShowDone} />
+                  ) : null}
+                </div>
+                <CategoryGroupNames category={templateDetail.template.category} orgGroup={templateDetail.template.orgGroup} />
+                {templateDetail.template.description ? <p className="muted">{templateDetail.template.description}</p> : null}
+                <p className="muted">{templateDetail.template.taskCount === null ? 'Aufgabenanzahl offen' : `${templateDetail.template.taskCount} Aufgaben`}</p>
+                {!templateDetail.template.tasksIncluded ? <p className="muted">Die einzelnen Aufgaben dieser Vorlage stellt die Aufgaben-App hier nicht bereit.</p> : null}
+                {templateDetail.template.tasksIncluded && templateDetail.template.tasks.length > 0 && templateTasks.length === 0 ? (
+                  <p className="empty">Keine offenen Aufgaben.</p>
+                ) : null}
+                {templateDetail.template.tasksIncluded ? (
+                  <div className="simplelist">
+                    {templateTasks.map((task) => <TaskRow busy={busy} key={task.id} task={task} onStatus={(next) => { void changeStatus(task.id, next) }} />)}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          <form className="panel" onSubmit={(event) => { void createList(event) }}>
-            <div className="panel-head"><h2>Liste erstellen</h2></div>
-            <div className="panel-inner">
-              <div className="formfield">
-                <label htmlFor="task-list-name">Name</label>
-                <input className="input" id="task-list-name" required value={name} onChange={(event) => setName(event.target.value)} />
-              </div>
-              <div className="formfield">
-                <label htmlFor="task-list-description">Beschreibung</label>
-                <input className="input" id="task-list-description" value={description} onChange={(event) => setDescription(event.target.value)} />
-              </div>
-              <div className="formfield">
-                <label htmlFor="task-list-template">Vorlage</label>
-                <select className="input" id="task-list-template" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
-                  <option value="">Ohne Vorlage</option>
-                  {(templates?.templates ?? []).filter((template) => template.addressable).map((template) => (
-                    <option key={template.id} value={template.id}>{template.name ?? template.id}{template.taskCount === null ? '' : ` · ${template.taskCount}`}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="formfield">
-                <label htmlFor="task-list-category">Kategorie-ID</label>
-                <input className="input" id="task-list-category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} />
-              </div>
-              <div className="formfield">
-                <label htmlFor="task-list-group">Gruppen-ID</label>
-                <input className="input" id="task-list-group" value={orgGroupId} onChange={(event) => setOrgGroupId(event.target.value)} />
-              </div>
-              <label className="check-line">
-                <input checked={personal} type="checkbox" onChange={(event) => setPersonal(event.target.checked)} />
-                Persönliche Liste
-              </label>
-              <button className="btn primary" disabled={busy} type="submit">Liste erstellen</button>
-            </div>
-          </form>
         </div>
       </div>
     </section>
@@ -228,26 +213,4 @@ function sectionText(payload: { notice: string | null } | null, count: number, e
 function Notice({ text }: { text: string | null }) {
   if (!text) return null
   return <p className="empty">{text}</p>
-}
-
-function TaskRow({ task, busy, onStatus }: { task: TaskItem; busy: boolean; onStatus: (status: string) => void }) {
-  return (
-    <div className="item">
-      <div className={task.status === 'done' ? 'check checked' : 'check'}>{task.status === 'done' ? '✓' : ''}</div>
-      <div>
-        <b>{task.title ?? task.id}</b>
-        {task.details ? <small>{task.details}</small> : null}
-        <small>{task.statusLabel ?? task.status ?? 'Ohne Status'}</small>
-        {task.addressable ? (
-          <span className="check-line">
-            {TASK_STATUSES.map((item) => (
-              <button className={task.status === item.value ? 'btn small' : 'btn small light'} disabled={busy || task.status === item.value} key={item.value} type="button" onClick={() => onStatus(item.value)}>
-                {item.label}
-              </button>
-            ))}
-          </span>
-        ) : null}
-      </div>
-    </div>
-  )
 }

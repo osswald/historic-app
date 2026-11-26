@@ -4,7 +4,7 @@ import type { ClubEvent, GastroPlan, GastroView } from '../api/types'
 import { AuditHistory } from '../components/AuditHistory'
 import { incompleteMessage, missingFieldLabels } from '../forms/incomplete'
 import { MobileSaveBar } from '../forms/MobileSaveBar'
-import { confirmLeave, useRegisterUnsaved } from '../forms/unsaved'
+import { useRegisterUnsaved } from '../forms/unsaved'
 import { useMember, useToast } from '../shell/context'
 
 type DishDraft = {
@@ -37,8 +37,10 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
   const [busy, setBusy] = useState(false)
   const [ready, setReady] = useState(false)
   const [baseline, setBaseline] = useState<string | null>(null)
+  const [composing, setComposing] = useState(false)
 
   useEffect(() => {
+    setComposing(false)
     api<GastroView>(`/api/v1/events/${event.id}/gastronomy`)
       .then((body) => {
         setView(body)
@@ -64,7 +66,6 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
   }
 
   function cancel() {
-    if (!confirmLeave()) return
     onCancel?.()
   }
 
@@ -125,6 +126,19 @@ export function GastroPlanPanel({ event, onCancel }: { event: ClubEvent; onCance
   const plan = view?.plan ?? null
   const canEdit = view?.canEdit === true
   const alreadyNamed = member ? draft.responsible.some((person) => person.sub === member.sub) : true
+
+  if (!plan && !composing) {
+    return (
+      <div className="stack">
+        {error ? <div className="banner-error">{error}</div> : null}
+        {canEdit ? (
+          <button className="btn light empty-add" type="button" onClick={() => setComposing(true)}>Planung hinzufügen</button>
+        ) : (
+          <p className="muted">Noch keine Gastronomieplanung.</p>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="stack">
